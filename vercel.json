@@ -1,0 +1,27 @@
+{
+  "functions": {
+    "api/keepa.js": {
+      "maxDuration": 30
+    },
+    "api/sellerboard.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/sellerboard",
+      "destination": "/api/sellerboard.js"
+    },
+    {
+      "source": "/api/keepa",
+      "destination": "/api/keepa.js"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/[^.]+",
+      "dest": "/",
+      "status": 200
+    }
+  ]
+}
