@@ -1,14 +1,44 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
-import { products as mockProducts, marketplaces, categories } from "../data/mockData";
 import { useSellerboard } from "./SellerboardContext";
+import { useAuth } from "./AuthContext";
+import { productsService } from "../services/products.service";
 
 const AppContext = createContext(null);
 
+export const marketplaces = [
+  { id: "DE", name: "Germany", currency: "€" },
+  { id: "FR", name: "France", currency: "€" },
+  { id: "IT", name: "Italy", currency: "€" },
+  { id: "ES", name: "Spain", currency: "€" },
+  { id: "UK", name: "United Kingdom", currency: "£" },
+  { id: "US", name: "United States", currency: "$" }
+];
+
+export const categories = [
+  { id: "all", name: "All Categories" },
+  { id: "electronics", name: "Electronics" },
+  { id: "home", name: "Home & Kitchen" },
+  { id: "sports", name: "Sports & Outdoors" },
+  { id: "toys", name: "Toys & Games" },
+  { id: "beauty", name: "Beauty & Personal Care" },
+  { id: "fashion", name: "Fashion" },
+  { id: "books", name: "Books" },
+  { id: "office", name: "Office Products" },
+  { id: "automotive", name: "Automotive" },
+  { id: "tools", name: "Tools" },
+  { id: "garden", name: "Garden" },
+  { id: "pets", name: "Pet Supplies" },
+  { id: "baby", name: "Baby" },
+  { id: "other", name: "Other" }
+];
+
 export function AppProvider({ children }) {
+  const { user } = useAuth();
   const { products: sellerboardProducts, loading: sellerboardLoading } = useSellerboard();
   const [selectedMarketplace, setSelectedMarketplace] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [useSellerboardData, setUseSellerboardData] = useState(true);
+  const [supabaseProducts, setSupabaseProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [settings, setSettings] = useState({
     minRoi: 25,
     minUnits: 20,
@@ -17,48 +47,51 @@ export function AppProvider({ children }) {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  useEffect(() => {
+    if (user) {
+      loadSupabaseProducts();
+    } else {
+      setSupabaseProducts([]);
+      setLoadingProducts(false);
+    }
+  }, [user]);
+
+  const loadSupabaseProducts = async () => {
+    try {
+      setLoadingProducts(true);
+      const products = await productsService.getProductsWithSalesHistory(user.id);
+      setSupabaseProducts(products);
+      console.log("📦 Loaded products from Supabase:", products.length);
+    } catch (error) {
+      console.error("❌ Error loading Supabase products:", error);
+      setSupabaseProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
   const allProducts = useMemo(() => {
-    if (useSellerboardData && sellerboardProducts.length > 0) {
-      console.log("📦 Using Sellerboard Data:", sellerboardProducts.length, "products");
+    if (supabaseProducts.length > 0) {
+      console.log("📦 Using Supabase Products:", supabaseProducts.length);
+      return supabaseProducts;
+    }
+    if (sellerboardProducts.length > 0) {
+      console.log("📦 Using Sellerboard Products:", sellerboardProducts.length);
       return sellerboardProducts;
     }
-    console.log("📦 Using Mock Data:", mockProducts.length, "products");
-    console.table(mockProducts.map(p => ({
-      ASIN: p.asin,
-      Title: p.title,
-      Marketplace: p.marketplace,
-      Category: p.category
-    })));
-    return mockProducts;
-  }, [useSellerboardData, sellerboardProducts]);
+
+    console.log("⚠️ No products available from any source");
+    return [];
+  }, [supabaseProducts, sellerboardProducts]);
 
   const filteredProducts = useMemo(() => {
-    console.log("🔍 FILTER STATUS:");
-    console.log("  - Selected Marketplace:", selectedMarketplace);
-    console.log("  - Selected Category:", selectedCategory);
-    console.log("  - Total Products Before Filter:", allProducts.length);
-
     const filtered = allProducts.filter(product => {
       const marketplaceMatch = selectedMarketplace === "all" || product.marketplace === selectedMarketplace;
       const categoryMatch = selectedCategory === "all" || product.category === selectedCategory;
-      if (!marketplaceMatch || !categoryMatch) {
-        console.log(`  ❌ Product ${product.asin} filtered out:`, {
-          marketplace: product.marketplace,
-          marketplaceMatch,
-          category: product.category,
-          categoryMatch
-        });
-      }
       return marketplaceMatch && categoryMatch;
     });
 
-    console.log("  ✅ Products After Filter:", filtered.length);
-    if (filtered.length === 0) {
-      console.warn("⚠️ WARNING: NO PRODUCTS MATCHED THE FILTERS!");
-      console.log("Available marketplaces in data:", [...new Set(allProducts.map(p => p.marketplace))]);
-      console.log("Available categories in data:", [...new Set(allProducts.map(p => p.category))]);
-    }
-
+    console.log("✅ Filtered Products:", filtered.length, "from", allProducts.length);
     return filtered;
   }, [allProducts, selectedMarketplace, selectedCategory]);
 
@@ -87,15 +120,6 @@ export function AppProvider({ children }) {
     );
   }, [filteredProducts]);
 
-  // Debug effect to monitor data source changes
-  useEffect(() => {
-    console.log("🔄 DATA SOURCE CHANGED:");
-    console.log("  - Use Sellerboard Data:", useSellerboardData);
-    console.log("  - Sellerboard Products:", sellerboardProducts.length);
-    console.log("  - Sellerboard Loading:", sellerboardLoading);
-    console.log("  - Active Data Source:", allProducts.length, "products");
-  }, [useSellerboardData, sellerboardProducts, sellerboardLoading, allProducts]);
-
   const value = {
     selectedMarketplace,
     setSelectedMarketplace,
@@ -112,9 +136,9 @@ export function AppProvider({ children }) {
     marketplaces,
     categories,
     allProducts,
-    useSellerboardData,
-    setUseSellerboardData,
-    sellerboardLoading
+    loadingProducts,
+    sellerboardLoading,
+    refreshProducts: loadSupabaseProducts
   };
 
   return (

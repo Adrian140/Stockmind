@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 import SellerboardStatus from "../components/widgets/SellerboardStatus";
+import ProductImporter from "../components/admin/ProductImporter";
 
 export default function Integrations() {
   const { user } = useAuth();
@@ -176,6 +177,8 @@ export default function Integrations() {
       </div>
 
       <SellerboardStatus />
+
+      <ProductImporter />
 
       <div className="flex justify-end">
         <button

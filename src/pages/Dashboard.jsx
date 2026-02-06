@@ -1,16 +1,76 @@
-import React from 'react';
-import { ShoppingCart, TrendingUp, AlertTriangle, Package } from 'lucide-react';
-import { useApp } from '../context/AppContext';
-import KpiCard from '../components/ui/KpiCard';
-import ChartCard from '../components/ui/ChartCard';
-import SalesChart from '../components/charts/SalesChart';
-import BuyBoxChart from '../components/charts/BuyBoxChart';
-import SeasonalProducts from '../components/widgets/SeasonalProducts';
-import ClearanceAlerts from '../components/widgets/ClearanceAlerts';
-import RecommendationsTable from '../components/widgets/RecommendationsTable';
+import React, { useState, useEffect } from "react";
+import { ShoppingCart, TrendingUp, AlertTriangle, Package } from "lucide-react";
+import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
+import { productsService } from "../services/products.service";
+import KpiCard from "../components/ui/KpiCard";
+import ChartCard from "../components/ui/ChartCard";
+import SalesChart from "../components/charts/SalesChart";
+import BuyBoxChart from "../components/charts/BuyBoxChart";
+import SeasonalProducts from "../components/widgets/SeasonalProducts";
+import ClearanceAlerts from "../components/widgets/ClearanceAlerts";
+import RecommendationsTable from "../components/widgets/RecommendationsTable";
 
 export default function Dashboard() {
-  const { buyRecommendations, seasonalWinners, clearanceStock, filteredProducts } = useApp();
+  const { buyRecommendations, seasonalWinners, clearanceStock, filteredProducts, allProducts } = useApp();
+  const { user } = useAuth();
+  const [kpiChanges, setKpiChanges] = useState({
+    recommendations: 0,
+    seasonal: 0,
+    clearance: 0,
+    total: 0
+  });
+
+  useEffect(() => {
+    if (user && allProducts.length > 0) {
+      calculateKpiChanges();
+    }
+  }, [user, allProducts, buyRecommendations, seasonalWinners, clearanceStock, filteredProducts]);
+
+  const calculateKpiChanges = async () => {
+    try {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const lastWeekProducts = allProducts.filter(p => {
+        const created = new Date(p.created_at || new Date());
+        return created >= oneWeekAgo;
+      });
+
+      const lastMonthProducts = allProducts.filter(p => {
+        const created = new Date(p.created_at || new Date());
+        return created >= thirtyDaysAgo;
+      });
+
+      const recommendationsChange = lastWeekProducts.length > 0 
+        ? Math.round((lastWeekProducts.filter(p => 
+            p.roi >= 25 && p.units30d >= 20 && p.profitUnit >= 2
+          ).length / buyRecommendations.length) * 100) 
+        : 0;
+
+      const seasonalChange = seasonalWinners.length > 0 
+        ? Math.round((seasonalWinners.length / allProducts.length) * 100)
+        : 0;
+
+      const clearanceChange = clearanceStock.length > 0
+        ? -Math.round((clearanceStock.length / allProducts.length) * 100)
+        : 0;
+
+      const totalChange = lastMonthProducts.length;
+
+      setKpiChanges({
+        recommendations: recommendationsChange,
+        seasonal: seasonalChange,
+        clearance: clearanceChange,
+        total: totalChange
+      });
+    } catch (error) {
+      console.error("Error calculating KPI changes:", error);
+    }
+  };
 
   return (
     <div id="dashboard-page" className="space-y-6">
@@ -18,7 +78,7 @@ export default function Dashboard() {
         <KpiCard
           title="Buy Recommendations"
           value={buyRecommendations.length}
-          change={12}
+          change={kpiChanges.recommendations}
           changeLabel="vs last week"
           icon={ShoppingCart}
           to="/products?filter=recommendations"
@@ -27,7 +87,7 @@ export default function Dashboard() {
         <KpiCard
           title="Seasonal Winners"
           value={seasonalWinners.length}
-          change={8}
+          change={kpiChanges.seasonal}
           changeLabel="upcoming"
           icon={TrendingUp}
           to="/seasonality"
@@ -36,7 +96,7 @@ export default function Dashboard() {
         <KpiCard
           title="Clearance Stock"
           value={clearanceStock.length}
-          change={-15}
+          change={kpiChanges.clearance}
           changeLabel="vs last month"
           icon={AlertTriangle}
           to="/clearance"
@@ -45,7 +105,7 @@ export default function Dashboard() {
         <KpiCard
           title="Total Products"
           value={filteredProducts.length}
-          change={5}
+          change={kpiChanges.total}
           changeLabel="new this month"
           icon={Package}
           to="/products"
