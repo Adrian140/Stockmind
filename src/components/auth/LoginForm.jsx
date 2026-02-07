@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { LogIn, Mail, Lock } from "lucide-react";
 
-export default function LoginForm({ onToggleMode }) {
+export default function LoginForm({ onToggleMode, onForgotPassword }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,6 +75,17 @@ export default function LoginForm({ onToggleMode }) {
           className="text-amazon-orange hover:text-orange-600 font-light"
         >
           Sign up
+        </button>
+      </p>
+
+      <p className="text-center text-lg font-extralight text-slate-400">
+        Forgot your password?{" "}
+        <button
+          type="button"
+          onClick={onForgotPassword}
+          className="text-amazon-orange hover:text-orange-600 font-light"
+        >
+          Reset it
         </button>
       </p>
     </form>

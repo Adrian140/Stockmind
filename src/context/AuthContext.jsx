@@ -74,13 +74,36 @@ export function AuthProvider({ children }) {
     return {};
   };
 
+  const resetPassword = async (email) => {
+    const redirectTo = `${window.location.origin}/auth`;
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      toast.error(error.message);
+      return { error };
+    }
+    toast.success("Password reset email sent. Check your inbox.");
+    return { data };
+  };
+
+  const updatePassword = async (newPassword) => {
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      toast.error(error.message);
+      return { error };
+    }
+    toast.success("Password updated successfully.");
+    return { data };
+  };
+
   const value = {
     user,
     loading,
     subscription,
     signUp,
     signIn,
-    signOut
+    signOut,
+    resetPassword,
+    updatePassword
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
