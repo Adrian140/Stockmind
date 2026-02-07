@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { UserPlus, Mail, Lock } from "lucide-react";
+import { UserPlus, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function SignupForm({ onToggleMode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
 
@@ -41,14 +42,22 @@ export default function SignupForm({ onToggleMode }) {
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg pl-12 pr-4 py-3 text-lg font-extralight text-white focus:outline-none focus:border-amazon-orange"
+            className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg pl-12 pr-12 py-3 text-lg font-extralight text-white focus:outline-none focus:border-amazon-orange"
             placeholder="••••••••"
             minLength={6}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
         </div>
       </div>
 
@@ -57,14 +66,22 @@ export default function SignupForm({ onToggleMode }) {
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg pl-12 pr-4 py-3 text-lg font-extralight text-white focus:outline-none focus:border-amazon-orange"
+            className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg pl-12 pr-12 py-3 text-lg font-extralight text-white focus:outline-none focus:border-amazon-orange"
             placeholder="••••••••"
             minLength={6}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
         </div>
       </div>
 
