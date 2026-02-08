@@ -504,10 +504,16 @@ export default function ProductImporter() {
 
   const refreshProductsByMonth = async ({ startDate, endDate, marketplace, skus }) => {
     if (Array.isArray(skus) && skus.length > 0) {
-      return productsService.refreshProductsFromDaily(user.id, {
-        marketplace,
-        skus
-      });
+      const chunkSize = 50;
+      for (let i = 0; i < skus.length; i += chunkSize) {
+        const chunk = skus.slice(i, i + chunkSize);
+        const refresh = await productsService.refreshProductsFromDaily(user.id, {
+          marketplace,
+          skus: chunk
+        });
+        if (!refresh.success) return refresh;
+      }
+      return { success: true };
     }
     const ranges = buildChunkRanges(startDate, endDate, 7);
     for (const range of ranges) {
