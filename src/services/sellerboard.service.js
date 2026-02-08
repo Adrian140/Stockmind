@@ -233,7 +233,7 @@ function mapCSVToProducts(csvData) {
     Units30d: p.Units30d
   })));
 
-  console.log(`✅ Valid products: ${validProducts.length} / ${products.length}`);
+  console.log(`✅ Valid products: ${validProducts.length} / ${csvData.length}`);
 
   return validProducts;
 }
