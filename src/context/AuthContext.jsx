@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
       .from("subscriptions")
       .select("*")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
     if (!error && data) {
       setSubscription(data);
     } else {
