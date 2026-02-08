@@ -2,8 +2,6 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from "
 import { useSellerboard } from "./SellerboardContext";
 import { useAuth } from "./AuthContext";
 import { productsService } from "../services/products.service";
-import { parseCSV, mapCSVToDailyRows } from "../services/sellerboard.service";
-import { upsertSellerboardDailyRows } from "../services/sellerboardDaily.service";
 
 const AppContext = createContext(null);
 
@@ -75,30 +73,6 @@ export function AppProvider({ children }) {
     importSellerboard();
   }, [user, sellerboardProducts]);
 
-  useEffect(() => {
-    const importDailyRows = async () => {
-      if (!user) return;
-      let importedAny = false;
-      for (const mp of marketplaces) {
-        const response = await fetch(`/api/sellerboard?reportType=daily&marketplace=${mp.id}`);
-        if (!response.ok) continue;
-        const csvText = await response.text();
-        const csvData = parseCSV(csvText);
-        if (csvData.length === 0) continue;
-        const dailyRows = mapCSVToDailyRows(csvData);
-        const result = await upsertSellerboardDailyRows(user.id, dailyRows);
-        if (result?.success) {
-          importedAny = true;
-        }
-      }
-      if (importedAny) {
-        await productsService.refreshProductsFromDaily(user.id);
-        await loadSupabaseProducts();
-      }
-    };
-
-    importDailyRows();
-  }, [user]);
 
   const loadSupabaseProducts = async () => {
     try {

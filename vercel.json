@@ -4,5 +4,11 @@
       "source": "/((?!api/).*)",
       "destination": "/"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/sellerboard-daily-sync",
+      "schedule": "59 21 * * *"
+    }
   ]
 }
