@@ -376,6 +376,20 @@ class ProductsService {
     }
   }
 
+  async refreshProductsFromDaily(userId) {
+    try {
+      if (!userId) return { success: false, error: "Missing userId" };
+      const { error } = await supabase
+        .rpc("refresh_products_from_daily", { p_user: userId });
+      if (error) throw error;
+      this.clearCache();
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error refreshing products from daily:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
   getMonthName(monthNum) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return months[monthNum - 1] || "Jan";

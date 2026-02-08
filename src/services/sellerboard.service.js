@@ -75,7 +75,7 @@ function mapCategory(sellerboardCategory) {
 /**
  * Parse CSV string into array of objects (handles quoted commas)
  */
-function parseCSV(csvText) {
+export function parseCSV(csvText) {
   if (!csvText || csvText.trim() === "") {
     console.warn("⚠️ Empty CSV received");
     return [];
@@ -148,6 +148,64 @@ function parseCSV(csvText) {
 
   console.log("✅ PARSED ROWS:", data.length);
   return data;
+}
+
+function parseCsvDate(value) {
+  if (!value) return null;
+  const parts = value.split("/");
+  if (parts.length !== 3) return null;
+  let [p1, p2, p3] = parts.map(n => parseInt(n, 10));
+  if (!p1 || !p2 || !p3) return null;
+  // If first part > 12, assume DD/MM/YYYY
+  let day = p2;
+  let month = p1;
+  if (p1 > 12) {
+    day = p1;
+    month = p2;
+  }
+  const yyyy = p3;
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export function mapCSVToDailyRows(csvData) {
+  const rows = [];
+  for (const row of csvData) {
+    const asin = row["ASIN"] || row["asin"] || "";
+    const marketplace = row["Marketplace"] || row["marketplace"] || "";
+    const date = parseCsvDate(row["Date"]);
+    if (!asin || !marketplace || !date) continue;
+
+    const units =
+      parseFloat(row["UnitsOrganic"] || 0) +
+      parseFloat(row["UnitsPPC"] || 0) +
+      parseFloat(row["UnitsSponsoredProducts"] || 0) +
+      parseFloat(row["UnitsSponsoredDisplay"] || 0);
+
+    const revenue =
+      parseFloat(row["SalesOrganic"] || 0) +
+      parseFloat(row["SalesPPC"] || 0) +
+      parseFloat(row["SalesSponsoredProducts"] || 0) +
+      parseFloat(row["SalesSponsoredDisplay"] || 0);
+
+    const netProfit = parseFloat(row["NetProfit"] || 0);
+    const roi = parseFloat(row["ROI"] || 0);
+
+    rows.push({
+      report_date: date,
+      marketplace: mapMarketplace(marketplace),
+      asin,
+      sku: row["SKU"] || "",
+      title: row["Name"] || row["Title"] || "",
+      units_total: Math.round(units),
+      revenue_total: Number(revenue.toFixed(2)),
+      net_profit: Number(netProfit.toFixed(2)),
+      roi: Number(roi.toFixed(2)),
+      raw: row
+    });
+  }
+  return rows;
 }
 
 /**

@@ -4,6 +4,8 @@ import { Upload, Database, CheckCircle2, AlertCircle, Loader2 } from "lucide-rea
 import { useAuth } from "../../context/AuthContext";
 import { useSellerboard } from "../../context/SellerboardContext";
 import { productsService } from "../../services/products.service";
+import { parseCSV, mapCSVToDailyRows } from "../../services/sellerboard.service";
+import { upsertSellerboardDailyRows } from "../../services/sellerboardDaily.service";
 import toast from "react-hot-toast";
 
 export default function ProductImporter() {
@@ -11,6 +13,9 @@ export default function ProductImporter() {
   const { products: sellerboardProducts, refreshData } = useSellerboard();
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(0);
+  const [historyFile, setHistoryFile] = useState(null);
+  const [historyImporting, setHistoryImporting] = useState(false);
+  const [historyImported, setHistoryImported] = useState(0);
 
   const importSellerboardToSupabase = async () => {
     if (!user) {
@@ -90,6 +95,47 @@ export default function ProductImporter() {
     }
   };
 
+  const importHistoryCsv = async () => {
+    if (!user) {
+      toast.error("You must be logged in to import history");
+      return;
+    }
+    if (!historyFile) {
+      toast.error("Select a Sellerboard CSV file first");
+      return;
+    }
+
+    try {
+      setHistoryImporting(true);
+      setHistoryImported(0);
+
+      const text = await historyFile.text();
+      const csvData = parseCSV(text);
+      if (csvData.length === 0) {
+        toast.error("CSV has no data rows");
+        return;
+      }
+      const dailyRows = mapCSVToDailyRows(csvData);
+      const result = await upsertSellerboardDailyRows(user.id, dailyRows, 500);
+      if (!result.success) {
+        throw new Error(result.error || "Import failed");
+      }
+      setHistoryImported(result.count || dailyRows.length);
+
+      const refresh = await productsService.refreshProductsFromDaily(user.id);
+      if (!refresh.success) {
+        toast.error("History imported, but failed to refresh products");
+      } else {
+        toast.success(`Imported ${result.count} daily rows and refreshed products`);
+      }
+    } catch (error) {
+      console.error("❌ History import failed:", error);
+      toast.error("History import failed: " + error.message);
+    } finally {
+      setHistoryImporting(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -109,6 +155,35 @@ export default function ProductImporter() {
       </div>
 
       <div className="space-y-4">
+        <div className="bg-dashboard-bg rounded-lg p-4">
+          <p className="text-lg font-extralight text-slate-300 mb-2">
+            Import Sellerboard full history (CSV)
+          </p>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => setHistoryFile(e.target.files?.[0] || null)}
+            className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+          />
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-lg font-extralight text-slate-400">
+              {historyFile ? historyFile.name : "No file selected"}
+            </span>
+            <button
+              onClick={importHistoryCsv}
+              disabled={historyImporting || !historyFile}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {historyImporting ? "Importing..." : "Import History CSV"}
+            </button>
+          </div>
+          {historyImporting && (
+            <div className="mt-3 text-lg font-extralight text-slate-400">
+              Importing history... {historyImported}
+            </div>
+          )}
+        </div>
+
         <div className="bg-dashboard-bg rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-lg font-extralight text-slate-300">Sellerboard Products Available</p>
