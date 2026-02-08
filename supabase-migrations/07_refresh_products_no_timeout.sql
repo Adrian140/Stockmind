@@ -16,6 +16,7 @@ BEGIN
     marketplace,
     status,
     tags,
+    image_url,
     units_30d,
     units_90d,
     units_365d,
@@ -26,14 +27,15 @@ BEGIN
     roi
   )
   SELECT
-    user_id,
-    asin,
-    sku,
+    d.user_id,
+    d.asin,
+    d.sku,
     MAX(title) AS title,
     'other' AS category,
-    marketplace,
+    d.marketplace,
     'active' AS status,
     ARRAY[]::TEXT[] AS tags,
+    MAX(ai.image_url) AS image_url,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN units_total ELSE 0 END) AS units_30d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '90 days' THEN units_total ELSE 0 END) AS units_90d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '365 days' THEN units_total ELSE 0 END) AS units_365d,
@@ -47,13 +49,17 @@ BEGIN
       ELSE 0
     END AS profit_unit,
     AVG(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN roi ELSE NULL END) AS roi
-  FROM sellerboard_daily
-  WHERE user_id = p_user
-  GROUP BY user_id, asin, sku, marketplace
+  FROM sellerboard_daily d
+  LEFT JOIN asin_images ai
+    ON ai.user_id = d.user_id
+    AND ai.asin = d.asin
+  WHERE d.user_id = p_user
+  GROUP BY d.user_id, d.asin, d.sku, d.marketplace
   ON CONFLICT (user_id, sku, marketplace)
   DO UPDATE SET
     title = EXCLUDED.title,
     category = EXCLUDED.category,
+    image_url = COALESCE(products.image_url, EXCLUDED.image_url),
     units_30d = EXCLUDED.units_30d,
     units_90d = EXCLUDED.units_90d,
     units_365d = EXCLUDED.units_365d,
