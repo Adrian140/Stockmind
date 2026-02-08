@@ -1,11 +1,9 @@
 import React from "react";
 import { RefreshCw, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { useSellerboard } from "../../context/SellerboardContext";
-import { useApp } from "../../context/AppContext";
 
 export default function SellerboardStatus() {
   const { products, loading, lastSync, error, refreshData } = useSellerboard();
-  const { useSellerboardData, setUseSellerboardData } = useApp();
 
   const formatLastSync = () => {
     if (!lastSync) return "Never";
@@ -58,16 +56,7 @@ export default function SellerboardStatus() {
 
         <div className="flex items-center justify-between">
           <span className="text-lg font-extralight text-slate-400">Data source</span>
-          <button
-            onClick={() => setUseSellerboardData(!useSellerboardData)}
-            className={`px-3 py-1 rounded-lg text-lg font-extralight transition-colors ${
-              useSellerboardData 
-                ? "bg-amazon-orange text-white" 
-                : "bg-dashboard-hover text-slate-400"
-            }`}
-          >
-            {useSellerboardData ? "Live Sellerboard" : "Demo Data"}
-          </button>
+          <span className="text-lg font-extralight text-white">Sellerboard</span>
         </div>
 
         {error && (

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from "
 import { useSellerboard } from "./SellerboardContext";
 import { useAuth } from "./AuthContext";
 import { productsService } from "../services/products.service";
-import { products as mockProducts } from "../data/mockData";
 
 const AppContext = createContext(null);
 
@@ -44,14 +43,6 @@ export function AppProvider({ children }) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [supabaseProducts, setSupabaseProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
-  const [useSellerboardData, setUseSellerboardData] = useState(() => {
-    try {
-      const stored = localStorage.getItem("useSellerboardData");
-      return stored === null ? true : stored === "true";
-    } catch {
-      return true;
-    }
-  });
   const [settings, setSettings] = useState({
     minRoi: 25,
     minUnits: 20,
@@ -59,14 +50,6 @@ export function AppProvider({ children }) {
     volatilityThreshold: 0.20
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("useSellerboardData", String(useSellerboardData));
-    } catch {
-      // ignore storage errors (private mode, blocked storage)
-    }
-  }, [useSellerboardData]);
 
   useEffect(() => {
     if (user) {
@@ -96,10 +79,6 @@ export function AppProvider({ children }) {
       console.log("📦 Using Supabase Products:", supabaseProducts.length);
       return supabaseProducts;
     }
-    if (!useSellerboardData) {
-      console.log("📦 Using Mock Products:", mockProducts.length);
-      return mockProducts;
-    }
     if (sellerboardProducts.length > 0) {
       console.log("📦 Using Sellerboard Products:", sellerboardProducts.length);
       return sellerboardProducts;
@@ -107,7 +86,7 @@ export function AppProvider({ children }) {
 
     console.log("⚠️ No products available from any source");
     return [];
-  }, [supabaseProducts, sellerboardProducts, useSellerboardData]);
+  }, [supabaseProducts, sellerboardProducts]);
 
   const filteredProducts = useMemo(() => {
     const filtered = allProducts.filter(product => {
@@ -154,8 +133,6 @@ export function AppProvider({ children }) {
     setSettings,
     settingsOpen,
     setSettingsOpen,
-    useSellerboardData,
-    setUseSellerboardData,
     filteredProducts,
     buyRecommendations,
     seasonalWinners,

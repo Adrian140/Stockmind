@@ -48,19 +48,10 @@ const CSV_TYPES = {
 
 class KeepaService {
   constructor() {
-    // Use serverless function in production, mock in dev
     this.proxyUrl = "/api/keepa";
-    this.isDev = import.meta.env.DEV;
   }
 
   async makeRequest(endpoint, params = {}) {
-    // DEV MODE: Return mock data instead of making API calls
-    if (this.isDev) {
-      console.log("🔧 DEV MODE: Using mock Keepa data");
-      return this.getMockResponse(endpoint, params);
-    }
-
-    // PRODUCTION MODE: Use real API
     try {
       const queryParams = new URLSearchParams({
         endpoint,
@@ -90,30 +81,6 @@ class KeepaService {
       console.error("Keepa API Request Error:", error);
       throw error;
     }
-  }
-
-  getMockResponse(endpoint, params) {
-    // Mock responses pentru development
-    if (endpoint === "/token") {
-      return {
-        tokensLeft: 5000,
-        refillRate: 100,
-        refillIn: 3600000,
-        timestamp: new Date().toISOString()
-      };
-    }
-
-    if (endpoint === "/product") {
-      return {
-        products: [],
-        tokensConsumed: 0,
-        tokensLeft: 5000,
-        processingTimeInMs: 50,
-        timestamp: new Date().toISOString()
-      };
-    }
-
-    return {};
   }
 
   async getTokenBalance() {

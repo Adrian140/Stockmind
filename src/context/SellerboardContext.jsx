@@ -25,7 +25,7 @@ export function SellerboardProvider({ children }) {
     } catch (error) {
       console.error("Error syncing Sellerboard data:", error);
       setError(error.message);
-      toast.error("Failed to sync Sellerboard data. Using demo data.");
+      toast.error("Failed to sync Sellerboard data.");
     } finally {
       setLoading(false);
     }
