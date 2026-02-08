@@ -32,6 +32,27 @@ export default function ProductImporter() {
   const [currentImagesFile, setCurrentImagesFile] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  React.useEffect(() => {
+    const storedStart = localStorage.getItem("historyStartDate") || "";
+    const storedEnd = localStorage.getItem("historyEndDate") || "";
+    const storedMarketplace = localStorage.getItem("historyMarketplace") || "";
+    if (storedStart) setHistoryStartDate(storedStart);
+    if (storedEnd) setHistoryEndDate(storedEnd);
+    if (storedMarketplace) setHistoryMarketplace(storedMarketplace);
+  }, []);
+
+  React.useEffect(() => {
+    localStorage.setItem("historyStartDate", historyStartDate || "");
+  }, [historyStartDate]);
+
+  React.useEffect(() => {
+    localStorage.setItem("historyEndDate", historyEndDate || "");
+  }, [historyEndDate]);
+
+  React.useEffect(() => {
+    localStorage.setItem("historyMarketplace", historyMarketplace || "");
+  }, [historyMarketplace]);
+
   const parseNumberEU = (value) => {
     if (value === null || value === undefined) return 0;
     const cleaned = String(value)
@@ -338,6 +359,41 @@ export default function ProductImporter() {
     }
   };
 
+  const formatDateInput = (date) => date.toISOString().slice(0, 10);
+  const parseDateInput = (value) => new Date(`${value}T00:00:00`);
+  const isLastDayOfMonth = (date) => {
+    const test = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+    return date.getUTCDate() === test.getUTCDate();
+  };
+
+  const goToNextMonth = () => {
+    if (!historyStartDate || !historyEndDate) {
+      toast.error("Selectează mai întâi o perioadă");
+      return;
+    }
+    const start = parseDateInput(historyStartDate);
+    const end = parseDateInput(historyEndDate);
+    const isFullMonth = start.getUTCDate() === 1 && isLastDayOfMonth(end);
+
+    const nextMonthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+    let nextStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate()));
+    let nextEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, end.getUTCDate()));
+
+    if (isFullMonth) {
+      nextStart = nextMonthStart;
+      nextEnd = new Date(Date.UTC(nextStart.getUTCFullYear(), nextStart.getUTCMonth() + 1, 0));
+    } else {
+      // Clamp end to last day of target month if needed
+      const lastDay = new Date(Date.UTC(nextEnd.getUTCFullYear(), nextEnd.getUTCMonth() + 1, 0)).getUTCDate();
+      if (nextEnd.getUTCDate() > lastDay) {
+        nextEnd = new Date(Date.UTC(nextEnd.getUTCFullYear(), nextEnd.getUTCMonth(), lastDay));
+      }
+    }
+
+    setHistoryStartDate(formatDateInput(nextStart));
+    setHistoryEndDate(formatDateInput(nextEnd));
+  };
+
   React.useEffect(() => {
     if (historyImporting || historyQueue.length === 0) return;
     const [next, ...rest] = historyQueue;
@@ -425,6 +481,13 @@ export default function ProductImporter() {
                   onChange={(e) => setHistoryEndDate(e.target.value)}
                   className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
                 />
+                <button
+                  type="button"
+                  onClick={goToNextMonth}
+                  className="ml-2 px-3 py-2 rounded-lg border border-dashboard-border text-sm text-slate-200 hover:border-amazon-orange hover:text-white transition-colors"
+                >
+                  Next month
+                </button>
               </div>
             </div>
           )}
