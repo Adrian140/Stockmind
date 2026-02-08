@@ -60,18 +60,7 @@ export function AppProvider({ children }) {
     }
   }, [user]);
 
-  useEffect(() => {
-    const importSellerboard = async () => {
-      if (!user) return;
-      if (!sellerboardProducts || sellerboardProducts.length === 0) return;
-      const result = await productsService.upsertSellerboardProducts(user.id, sellerboardProducts);
-      if (result?.success) {
-        await loadSupabaseProducts();
-      }
-    };
-
-    importSellerboard();
-  }, [user, sellerboardProducts]);
+  // Removed auto-import of 30-day Sellerboard aggregates to avoid repopulating products on refresh.
 
 
   const loadSupabaseProducts = async () => {
