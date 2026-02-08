@@ -50,6 +50,16 @@ const dedupeRows = (rows) => {
   return Array.from(map.values());
 };
 
+const getTodayInBucharest = () => {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Bucharest",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  return formatter.format(new Date());
+};
+
 const upsertDaily = async (supabase, userId, rows, batchSize = 500) => {
   const uniqueRows = dedupeRows(rows);
   let total = 0;
@@ -98,19 +108,22 @@ export default async function handler(req, res) {
 
     let imported = 0;
     let marketplaces = 0;
+    const todayLocal = getTodayInBucharest();
     for (const [, url] of entries) {
       const csvText = await fetchCsvText(url);
       const csvData = parseCSV(csvText);
       if (csvData.length === 0) continue;
-      const rows = mapCSVToDailyRows(csvData);
+      const rows = mapCSVToDailyRows(csvData).filter((r) => r.report_date === todayLocal);
       if (rows.length === 0) continue;
       imported += await upsertDaily(supabase, userId, rows);
       marketplaces += 1;
     }
 
-    await supabase.rpc("refresh_products_from_daily", { p_user: userId });
+    if (imported > 0) {
+      await supabase.rpc("refresh_products_from_daily", { p_user: userId });
+    }
 
-    res.status(200).json({ ok: true, imported, marketplaces });
+    res.status(200).json({ ok: true, imported, marketplaces, report_date: todayLocal });
   } catch (error) {
     console.error("Daily sync error:", error);
     res.status(500).json({ error: error.message });

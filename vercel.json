@@ -8,7 +8,7 @@
   "crons": [
     {
       "path": "/api/sellerboard-daily-sync",
-      "schedule": "59 21 * * *"
+      "schedule": "0 21 * * *"
     },
     {
       "path": "/api/keepa-image-sync",
