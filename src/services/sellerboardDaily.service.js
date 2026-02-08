@@ -25,10 +25,10 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
         asin: r.asin,
         sku: r.sku,
         title: r.title,
-        units_total: r.units_total || 0,
-        revenue_total: r.revenue_total || 0,
-        net_profit: r.net_profit || 0,
-        roi: r.roi || 0,
+        units_total: Math.round(Number(r.units_total) || 0),
+        revenue_total: Number(r.revenue_total) || 0,
+        net_profit: Number(r.net_profit) || 0,
+        roi: Number(r.roi) || 0,
         raw: r.raw || null
       }));
 
