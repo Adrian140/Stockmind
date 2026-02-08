@@ -88,7 +88,8 @@ export function AppProvider({ children }) {
 
   const filteredProducts = useMemo(() => {
     const filtered = allProducts.filter(product => {
-      const marketplaceMatch = selectedMarketplace === "all" || product.marketplace === selectedMarketplace;
+      const productMarketplace = (product.marketplace || "").toUpperCase();
+      const marketplaceMatch = selectedMarketplace === "all" || productMarketplace === selectedMarketplace;
       const categoryMatch = selectedCategory === "all" || product.category === selectedCategory;
       return marketplaceMatch && categoryMatch;
     });

@@ -180,6 +180,16 @@ export function parseCSV(csvText) {
   return data;
 }
 
+function parseNumber(value) {
+  if (value === null || value === undefined) return 0;
+  const cleaned = String(value)
+    .replace(/\u00A0/g, " ")
+    .replace(/\s/g, "")
+    .replace(",", ".");
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
 function parseCsvDate(value) {
   if (!value) return null;
   const parts = value.split("/");
@@ -208,19 +218,20 @@ export function mapCSVToDailyRows(csvData) {
     if (!asin || !marketplace || !date) continue;
 
     const units =
-      parseFloat(row["UnitsOrganic"] || 0) +
-      parseFloat(row["UnitsPPC"] || 0) +
-      parseFloat(row["UnitsSponsoredProducts"] || 0) +
-      parseFloat(row["UnitsSponsoredDisplay"] || 0);
+      parseNumber(row["UnitsOrganic"]) +
+      parseNumber(row["UnitsPPC"]) +
+      parseNumber(row["UnitsSponsoredProducts"]) +
+      parseNumber(row["UnitsSponsoredDisplay"]);
 
     const revenue =
-      parseFloat(row["SalesOrganic"] || 0) +
-      parseFloat(row["SalesPPC"] || 0) +
-      parseFloat(row["SalesSponsoredProducts"] || 0) +
-      parseFloat(row["SalesSponsoredDisplay"] || 0);
+      parseNumber(row["SalesOrganic"]) +
+      parseNumber(row["SalesPPC"]) +
+      parseNumber(row["SalesSponsoredProducts"]) +
+      parseNumber(row["SalesSponsoredDisplay"]);
 
-    const netProfit = parseFloat(row["NetProfit"] || 0);
-    const roi = parseFloat(row["ROI"] || 0);
+    const netProfit = parseNumber(row["NetProfit"]);
+    const roi = parseNumber(row["ROI"]);
+    const cost = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
 
     rows.push({
       report_date: date,
@@ -293,6 +304,7 @@ function mapCSVToProducts(csvData) {
         Units30d: 0,
         Revenue30d: 0,
         Profit30d: 0,
+        CostTotal: 0,
         ROI: 0,
         rows: 0
       });
@@ -302,12 +314,14 @@ function mapCSVToProducts(csvData) {
     agg.Units30d += units;
     agg.Revenue30d += revenue;
     agg.Profit30d += netProfit;
+    agg.CostTotal += cost;
     agg.ROI += roi;
     agg.rows += 1;
   }
 
   const validProducts = Array.from(byAsin.values()).map(p => {
     const profitUnit = p.Units30d > 0 ? p.Profit30d / p.Units30d : 0;
+    const cogs = p.Units30d > 0 ? p.CostTotal / p.Units30d : 0;
     const roi = p.rows > 0 ? p.ROI / p.rows : 0;
     return {
       asin: p.ASIN,
@@ -318,6 +332,7 @@ function mapCSVToProducts(csvData) {
       revenue30d: Number(p.Revenue30d.toFixed(2)),
       profit30d: Number(p.Profit30d.toFixed(2)),
       profitUnit: Number(profitUnit.toFixed(2)),
+      cogs: Number(cogs.toFixed(2)),
       roi: Number(roi.toFixed(2)),
       units90d: 0,
       units365d: 0,

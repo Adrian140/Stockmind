@@ -100,6 +100,11 @@ export default function Products() {
       }
     },
     {
+      key: 'cogs',
+      label: 'Purchase Cost',
+      render: (val) => <span className="font-mono">€{val !== undefined && val !== null ? val.toFixed(2) : '0.00'}</span>
+    },
+    {
       key: 'volatility30d',
       label: 'Volatility',
       render: (val) => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import clsx from 'clsx';
@@ -9,10 +9,12 @@ export default function DataTable({
   onRowClick,
   defaultSortKey,
   defaultSortDir = 'desc',
-  emptyMessage = 'No data available'
+  emptyMessage = 'No data available',
+  pageSize = 50
 }) {
   const [sortKey, setSortKey] = useState(defaultSortKey || columns[0]?.key);
   const [sortDir, setSortDir] = useState(defaultSortDir);
+  const [page, setPage] = useState(1);
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -36,6 +38,16 @@ export default function DataTable({
         : String(bVal).localeCompare(String(aVal));
     });
   }, [data, sortKey, sortDir]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [data, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const endIdx = startIdx + pageSize;
+  const pagedData = sortedData.slice(startIdx, endIdx);
 
   if (data.length === 0) {
     return (
@@ -75,9 +87,9 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody>
-            {sortedData.map((row, idx) => (
+            {pagedData.map((row, idx) => (
               <motion.tr
-                key={row.id || idx}
+                key={row.id || `${safePage}-${idx}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: idx * 0.02 }}
@@ -97,6 +109,32 @@ export default function DataTable({
           </tbody>
         </table>
       </div>
+      {sortedData.length > pageSize && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-dashboard-border">
+          <div className="text-sm text-slate-400">
+            {startIdx + 1}-{Math.min(endIdx, sortedData.length)} of {sortedData.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="px-3 py-1 rounded-md text-sm text-slate-300 bg-dashboard-bg border border-dashboard-border disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="text-sm text-slate-400">
+              Page {safePage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="px-3 py-1 rounded-md text-sm text-slate-300 bg-dashboard-bg border border-dashboard-border disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

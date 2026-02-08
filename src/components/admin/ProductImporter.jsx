@@ -131,10 +131,12 @@ export default function ProductImporter() {
           const units = parseNumberEU(row["Units"]);
           const revenue = parseNumberEU(row["Sales"]);
           const profit = parseNumberEU(row["Net profit"] || row["Net Profit"]);
+          const cost = parseNumberEU(row["Cost of Goods"]);
           const roi = parseNumberEU(row["ROI"]);
           const avgUnits = units / days;
           const avgRevenue = revenue / days;
           const avgProfit = profit / days;
+          const avgCost = cost / days;
 
           const productData = {
             asin,
@@ -149,6 +151,7 @@ export default function ProductImporter() {
             revenue30d: Number((avgRevenue * 30).toFixed(2)),
             profit30d: Number((avgProfit * 30).toFixed(2)),
             profitUnit: avgUnits > 0 ? Number((avgProfit / avgUnits).toFixed(2)) : 0,
+            cogs: avgUnits > 0 ? Number((avgCost / avgUnits).toFixed(2)) : 0,
             roi: Number(roi.toFixed(2)) || 0
           };
           summaryProducts.push(productData);
