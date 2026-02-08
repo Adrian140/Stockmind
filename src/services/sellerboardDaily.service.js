@@ -6,9 +6,19 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
       return { success: true, count: 0 };
     }
 
+    // Deduplicate within payload to avoid ON CONFLICT updating same row twice
+    const deduped = new Map();
+    for (const r of rows) {
+      const key = `${r.report_date}|${r.marketplace}|${r.asin}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, r);
+      }
+    }
+    const uniqueRows = Array.from(deduped.values());
+
     let total = 0;
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize).map(r => ({
+    for (let i = 0; i < uniqueRows.length; i += batchSize) {
+      const batch = uniqueRows.slice(i, i + batchSize).map(r => ({
         user_id: userId,
         report_date: r.report_date,
         marketplace: r.marketplace,
