@@ -82,14 +82,9 @@ export function AppProvider({ children }) {
       console.log("📦 Using Supabase Products:", supabaseProducts.length);
       return supabaseProducts;
     }
-    if (sellerboardProducts.length > 0) {
-      console.log("📦 Using Sellerboard Products:", sellerboardProducts.length);
-      return sellerboardProducts;
-    }
-
-    console.log("⚠️ No products available from any source");
+    console.log("⚠️ No products available from Supabase");
     return [];
-  }, [supabaseProducts, sellerboardProducts]);
+  }, [supabaseProducts]);
 
   const filteredProducts = useMemo(() => {
     const filtered = allProducts.filter(product => {
