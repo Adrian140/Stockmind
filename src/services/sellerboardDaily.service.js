@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 
-export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) {
+export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500, onProgress = null) {
   try {
     if (!userId || !Array.isArray(rows) || rows.length === 0) {
       return { success: true, count: 0 };
@@ -17,6 +17,7 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
     const uniqueRows = Array.from(deduped.values());
 
     let total = 0;
+    const totalRows = uniqueRows.length;
     for (let i = 0; i < uniqueRows.length; i += batchSize) {
       const batch = uniqueRows.slice(i, i + batchSize).map(r => ({
         user_id: userId,
@@ -41,6 +42,11 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
 
       if (error) throw error;
       total += data?.length || 0;
+
+      if (typeof onProgress === "function") {
+        const current = Math.min(i + batchSize, totalRows);
+        onProgress({ current, total: totalRows });
+      }
     }
 
     return { success: true, count: total };

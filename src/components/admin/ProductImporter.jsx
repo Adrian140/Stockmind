@@ -19,6 +19,7 @@ export default function ProductImporter() {
   const [historyFile, setHistoryFile] = useState(null);
   const [historyImporting, setHistoryImporting] = useState(false);
   const [historyImported, setHistoryImported] = useState(0);
+  const [historyProgress, setHistoryProgress] = useState({ current: 0, total: 0 });
   const [historyMarketplace, setHistoryMarketplace] = useState("FR");
   const [historyStartDate, setHistoryStartDate] = useState("");
   const [historyEndDate, setHistoryEndDate] = useState("");
@@ -111,6 +112,7 @@ export default function ProductImporter() {
     try {
       setHistoryImporting(true);
       setHistoryImported(0);
+      setHistoryProgress({ current: 0, total: 0 });
 
       const text = await historyFile.text();
       const csvData = parseCSV(text);
@@ -123,7 +125,8 @@ export default function ProductImporter() {
 
       if (isDaily) {
         const dailyRows = mapCSVToDailyRows(csvData);
-        const result = await upsertSellerboardDailyRows(user.id, dailyRows, 500);
+        setHistoryProgress({ current: 0, total: dailyRows.length });
+        const result = await upsertSellerboardDailyRows(user.id, dailyRows, 500, setHistoryProgress);
         if (!result.success) {
           throw new Error(result.error || "Import failed");
         }
@@ -181,7 +184,8 @@ export default function ProductImporter() {
           }
         }
 
-        const result = await upsertSellerboardDailyRows(user.id, summaryRows, 500);
+        setHistoryProgress({ current: 0, total: summaryRows.length });
+        const result = await upsertSellerboardDailyRows(user.id, summaryRows, 500, setHistoryProgress);
         if (!result.success) {
           throw new Error(result.error || "Import failed");
         }
@@ -401,8 +405,14 @@ export default function ProductImporter() {
             </button>
           </div>
           {historyImporting && uploadMode === "history" && (
-            <div className="mt-3 text-lg font-extralight text-slate-400">
-              Importing history... {historyImported}
+            <div className="mt-3 text-lg font-extralight text-slate-400 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>
+                Importing history...{" "}
+                {historyProgress.total > 0
+                  ? `${Math.min(100, Math.round((historyProgress.current / historyProgress.total) * 100))}% (${historyProgress.current}/${historyProgress.total})`
+                  : `${historyImported}`}
+              </span>
             </div>
           )}
           {imagesImporting && uploadMode === "images" && (
