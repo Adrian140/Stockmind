@@ -16,7 +16,8 @@ export default function ProductImporter() {
   const { marketplaces } = useApp();
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(0);
-  const [historyFile, setHistoryFile] = useState(null);
+  const [historyQueue, setHistoryQueue] = useState([]);
+  const [currentHistoryFile, setCurrentHistoryFile] = useState(null);
   const [historyImporting, setHistoryImporting] = useState(false);
   const [historyImported, setHistoryImported] = useState(0);
   const [historyProgress, setHistoryProgress] = useState({ current: 0, total: 0 });
@@ -27,6 +28,8 @@ export default function ProductImporter() {
   const [imagesImporting, setImagesImporting] = useState(false);
   const [imagesImported, setImagesImported] = useState(0);
   const [imagesProgress, setImagesProgress] = useState({ current: 0, total: 0 });
+  const [imagesQueue, setImagesQueue] = useState([]);
+  const [currentImagesFile, setCurrentImagesFile] = useState(null);
 
   const parseNumberEU = (value) => {
     if (value === null || value === undefined) return 0;
@@ -100,22 +103,20 @@ export default function ProductImporter() {
     }
   };
 
-  const importHistoryCsv = async () => {
+  const importHistoryCsv = async (file) => {
     if (!user) {
       toast.error("You must be logged in to import history");
       return;
     }
-    if (!historyFile) {
-      toast.error("Select a Sellerboard CSV file first");
-      return;
-    }
+    if (!file) return;
 
     try {
       setHistoryImporting(true);
       setHistoryImported(0);
       setHistoryProgress({ current: 0, total: 0 });
+      setCurrentHistoryFile(file);
 
-      const text = await historyFile.text();
+      const text = await file.text();
       const csvData = parseCSV(text);
       if (csvData.length === 0) {
         toast.error("CSV has no data rows");
@@ -140,8 +141,8 @@ export default function ProductImporter() {
         }
       } else {
         // Fallback: summary file (no Date) -> approximate rolling metrics
-        const inferredRange = parseDateRangeFromFilename(historyFile.name);
-        const inferred = inferMarketplaceFromFilename(historyFile.name);
+        const inferredRange = parseDateRangeFromFilename(file.name);
+        const inferred = inferMarketplaceFromFilename(file.name);
         const selectedMarketplace = inferred || historyMarketplace;
 
         const start = inferredRange?.start || (historyStartDate ? new Date(historyStartDate) : null);
@@ -203,25 +204,24 @@ export default function ProductImporter() {
       toast.error("History import failed: " + error.message);
     } finally {
       setHistoryImporting(false);
+      setCurrentHistoryFile(null);
     }
   };
 
-  const importImagesCsv = async () => {
+  const importImagesCsv = async (file) => {
     if (!user) {
       toast.error("You must be logged in to import images");
       return;
     }
-    if (!historyFile) {
-      toast.error("Select an image CSV file first");
-      return;
-    }
+    if (!file) return;
 
     try {
       setImagesImporting(true);
       setImagesImported(0);
       setImagesProgress({ current: 0, total: 0 });
+      setCurrentImagesFile(file);
 
-      const text = await historyFile.text();
+      const text = await file.text();
       const rows = parseCSV(text);
       if (!rows.length) {
         toast.error("CSV has no data rows");
@@ -309,8 +309,33 @@ export default function ProductImporter() {
       toast.error("Failed to import images");
     } finally {
       setImagesImporting(false);
+      setCurrentImagesFile(null);
     }
   };
+
+  const enqueueHistoryFiles = (files) => {
+    if (!files || files.length === 0) return;
+    setHistoryQueue((prev) => [...prev, ...Array.from(files)]);
+  };
+
+  const enqueueImageFiles = (files) => {
+    if (!files || files.length === 0) return;
+    setImagesQueue((prev) => [...prev, ...Array.from(files)]);
+  };
+
+  React.useEffect(() => {
+    if (historyImporting || historyQueue.length === 0) return;
+    const [next, ...rest] = historyQueue;
+    setHistoryQueue(rest);
+    importHistoryCsv(next);
+  }, [historyImporting, historyQueue]);
+
+  React.useEffect(() => {
+    if (imagesImporting || imagesQueue.length === 0) return;
+    const [next, ...rest] = imagesQueue;
+    setImagesQueue(rest);
+    importImagesCsv(next);
+  }, [imagesImporting, imagesQueue]);
 
   return (
     <motion.div
@@ -391,25 +416,48 @@ export default function ProductImporter() {
           <input
             type="file"
             accept=".csv"
-            onChange={(e) => setHistoryFile(e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => {
+              const files = e.target.files;
+              if (uploadMode === "images") {
+                enqueueImageFiles(files);
+              } else {
+                enqueueHistoryFiles(files);
+              }
+              e.target.value = "";
+            }}
             className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
           />
           <div className="mt-3 flex items-center justify-between">
             <span className="text-lg font-extralight text-slate-400">
-              {historyFile ? historyFile.name : "No file selected"}
+              {uploadMode === "images"
+                ? currentImagesFile?.name || (imagesQueue.length ? `${imagesQueue.length} pending` : "No file selected")
+                : currentHistoryFile?.name || (historyQueue.length ? `${historyQueue.length} pending` : "No file selected")}
             </span>
             <button
-              onClick={uploadMode === "images" ? importImagesCsv : importHistoryCsv}
-              disabled={(uploadMode === "images" ? imagesImporting : historyImporting) || !historyFile}
+              onClick={() => {
+                if (uploadMode === "images") {
+                  if (!imagesImporting && imagesQueue.length > 0) {
+                    const [next, ...rest] = imagesQueue;
+                    setImagesQueue(rest);
+                    importImagesCsv(next);
+                  }
+                } else if (!historyImporting && historyQueue.length > 0) {
+                  const [next, ...rest] = historyQueue;
+                  setHistoryQueue(rest);
+                  importHistoryCsv(next);
+                }
+              }}
+              disabled={uploadMode === "images" ? imagesImporting || imagesQueue.length === 0 : historyImporting || historyQueue.length === 0}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {uploadMode === "images"
                 ? imagesImporting
                   ? "Importing..."
-                  : "Import Images CSV"
+                  : "Start Images Import"
                 : historyImporting
                   ? "Importing..."
-                  : "Import History CSV"}
+                  : "Start History Import"}
             </button>
           </div>
           {historyImporting && uploadMode === "history" && (
