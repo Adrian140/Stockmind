@@ -10,6 +10,27 @@ class ProductsService {
     this.cacheDuration = 2 * 60 * 1000;
   }
 
+  normalizeImageUrl(value) {
+    if (!value) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          const first = parsed.find((item) => typeof item === "string" && item.trim());
+          if (first) return first.trim();
+        }
+      } catch (error) {
+        // fall through to string cleanup
+      }
+      const inner = trimmed.replace(/^\[\s*"?/, "").replace(/"?\s*\]$/, "");
+      const first = inner.split(",")[0] || "";
+      return first.trim().replace(/^"+|"+$/g, "") || null;
+    }
+    return trimmed.replace(/^"+|"+$/g, "") || null;
+  }
+
   async getAllProducts(userId) {
     try {
       if (!userId) {
@@ -58,7 +79,7 @@ class ProductsService {
         asin: p.asin,
         sku: p.sku,
         title: p.title,
-        imageUrl: p.image_url || imageMap.get(p.asin) || p.image || null,
+        imageUrl: this.normalizeImageUrl(p.image_url) || this.normalizeImageUrl(imageMap.get(p.asin)) || this.normalizeImageUrl(p.image) || null,
         brand: p.brand,
         category: p.category,
         targetUser: p.target_user,
