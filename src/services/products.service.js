@@ -25,18 +25,33 @@ class ProductsService {
 
       console.log("🔄 Fetching products from Supabase for user:", userId);
 
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+      const pageSize = 1000;
+      let allData = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) {
+          console.error("❌ Error fetching products:", error);
+          throw error;
+        }
+
+        allData = allData.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
 
       if (error) {
         console.error("❌ Error fetching products:", error);
         throw error;
       }
 
-      const products = (data || []).map(p => ({
+      const products = (allData || []).map(p => ({
         id: p.id,
         asin: p.asin,
         sku: p.sku,
