@@ -231,7 +231,7 @@ export function mapCSVToDailyRows(csvData) {
       parseNumber(row["SalesSponsoredDisplay"]);
 
     const netProfit = parseNumber(row["NetProfit"]);
-    const roi = parseNumber(row["ROI"]);
+    const roi = Math.max(-9999.99, Math.min(9999.99, parseNumber(row["ROI"])));
     const costTotal = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
     const costPerUnit = units > 0 ? Math.abs(costTotal) / units : null;
 

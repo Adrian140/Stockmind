@@ -16,6 +16,11 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500, 
       return Number.isFinite(num) ? Math.round(num) : null;
     };
 
+    const clampNumber = (value, min, max) => {
+      if (!Number.isFinite(value)) return null;
+      return Math.min(max, Math.max(min, value));
+    };
+
     // Deduplicate within payload to avoid ON CONFLICT updating same row twice
     const deduped = new Map();
     for (const r of rows) {
@@ -40,7 +45,7 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500, 
         units_total: Math.round(Number(r.units_total) || 0),
         revenue_total: Number(r.revenue_total) || 0,
         net_profit: Number(r.net_profit) || 0,
-        roi: Number(r.roi) || 0,
+        roi: clampNumber(Number(r.roi) || 0, -9999.99, 9999.99),
         units: toIntOrNull(r.units),
         refunds: toIntOrNull(r.refunds),
         sales: toNumberOrNull(r.sales),
