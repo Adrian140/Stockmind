@@ -333,6 +333,8 @@ class ProductsService {
         return { success: true, count: 0 };
       }
 
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
       const records = products.map(p => ({
         user_id: userId,
         asin: p.asin,
@@ -352,7 +354,7 @@ class ProductsService {
         bb_avg_7d: p.bbAvg7d || 0,
         bb_avg_30d: p.bbAvg30d || 0,
         volatility_30d: p.volatility30d || 0,
-        roi: p.roi || 0,
+        roi: clamp(Number.isFinite(p.roi) ? p.roi : 0, -999.99, 999.99),
         stock_qty: p.stockQty || 0,
         days_since_last_sale: p.daysSinceLastSale || 0,
         peak_months: p.peakMonths || []
