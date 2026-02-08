@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Filter, Tag, X, Edit2, ExternalLink, ChevronRight } from 'lucide-react';
+import clsx from 'clsx';
 import { useApp } from '../context/AppContext';
 import DataTable from '../components/ui/DataTable';
 import Badge from '../components/ui/Badge';
@@ -36,6 +37,13 @@ export default function Products() {
     return searchMatch && tagMatch;
   });
 
+  const formatUnits = (val, { dashOnZero = false, muted = false } = {}) => {
+    const hasValue = val !== undefined && val !== null && (!dashOnZero || val > 0);
+    const text = hasValue ? val.toLocaleString() : '-';
+    const className = clsx('font-mono', muted && !hasValue ? 'text-slate-500' : '');
+    return <span className={className}>{text}</span>;
+  };
+
   const columns = [
     {
       key: 'title',
@@ -68,22 +76,22 @@ export default function Products() {
     {
       key: 'units30d',
       label: 'Units 30d',
-      render: (val) => <span className="font-mono">{val !== undefined && val !== null ? val.toLocaleString() : '-'}</span>
+      render: (val) => formatUnits(val)
     },
     {
       key: 'units90d',
       label: 'Units 90d',
-      render: (val) => <span className="font-mono">{val ? val.toLocaleString() : '-'}</span>
+      render: (val) => formatUnits(val, { dashOnZero: true, muted: true })
     },
     {
       key: 'units365d',
       label: 'Units 365d',
-      render: (val) => <span className="font-mono text-slate-400">{val ? val.toLocaleString() : '-'}</span>
+      render: (val) => formatUnits(val, { dashOnZero: true, muted: true })
     },
     {
       key: 'unitsAllTime',
       label: 'Units All Time',
-      render: (val) => <span className="font-mono">{val ? val.toLocaleString() : '-'}</span>
+      render: (val) => formatUnits(val, { dashOnZero: true })
     },
     {
       key: 'profit30d',
