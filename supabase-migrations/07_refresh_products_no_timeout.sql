@@ -17,6 +17,7 @@ BEGIN
     status,
     tags,
     image_url,
+    cogs,
     units_30d,
     units_90d,
     units_365d,
@@ -36,6 +37,16 @@ BEGIN
     'active' AS status,
     ARRAY[]::TEXT[] AS tags,
     MAX(ai.image_url) AS image_url,
+    (
+      SELECT d2.cost_of_goods
+      FROM sellerboard_daily d2
+      WHERE d2.user_id = d.user_id
+        AND d2.asin = d.asin
+        AND d2.marketplace = d.marketplace
+        AND d2.cost_of_goods IS NOT NULL
+      ORDER BY d2.report_date DESC
+      LIMIT 1
+    ) AS cogs,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN units_total ELSE 0 END) AS units_30d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '90 days' THEN units_total ELSE 0 END) AS units_90d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '365 days' THEN units_total ELSE 0 END) AS units_365d,
@@ -60,6 +71,7 @@ BEGIN
     title = EXCLUDED.title,
     category = EXCLUDED.category,
     image_url = COALESCE(products.image_url, EXCLUDED.image_url),
+    cogs = COALESCE(EXCLUDED.cogs, products.cogs),
     units_30d = EXCLUDED.units_30d,
     units_90d = EXCLUDED.units_90d,
     units_365d = EXCLUDED.units_365d,

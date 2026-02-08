@@ -107,7 +107,7 @@ export async function fetchMetricsByDateRange({ userId, startDate, endDate, mark
     while (true) {
       let query = supabase
         .from("sellerboard_daily")
-        .select("sku,asin,marketplace,units_total")
+        .select("sku,asin,marketplace,units_total,revenue_total,net_profit")
         .eq("user_id", userId)
         .gte("report_date", startIso)
         .lte("report_date", endIso)

@@ -178,6 +178,8 @@ export default function Integrations() {
         </p>
       </div>
 
+      <ProductImporter />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-dashboard-card border border-dashboard-border rounded-lg p-6">
           <div className="flex items-center gap-3 mb-6">
@@ -232,8 +234,6 @@ export default function Integrations() {
           </div>
         </div>
       </div>
-
-      <ProductImporter />
 
       <div className="flex justify-end">
         <button
