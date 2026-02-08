@@ -26,6 +26,7 @@ export default function ProductImporter() {
   const [uploadMode, setUploadMode] = useState("history");
   const [imagesImporting, setImagesImporting] = useState(false);
   const [imagesImported, setImagesImported] = useState(0);
+  const [imagesProgress, setImagesProgress] = useState({ current: 0, total: 0 });
 
   const parseNumberEU = (value) => {
     if (value === null || value === undefined) return 0;
@@ -218,6 +219,7 @@ export default function ProductImporter() {
     try {
       setImagesImporting(true);
       setImagesImported(0);
+      setImagesProgress({ current: 0, total: 0 });
 
       const text = await historyFile.text();
       const rows = parseCSV(text);
@@ -254,6 +256,7 @@ export default function ProductImporter() {
       }
 
       const uniqueAsins = Array.from(new Set(mapped.map((m) => m.asin)));
+      setImagesProgress({ current: 0, total: uniqueAsins.length });
       const existing = new Set();
       for (let i = 0; i < uniqueAsins.length; i += 200) {
         const batch = uniqueAsins.slice(i, i + 200);
@@ -264,6 +267,10 @@ export default function ProductImporter() {
           .in("asin", batch);
         if (error) throw error;
         (data || []).forEach((row) => existing.add(row.asin));
+        setImagesProgress((prev) => ({
+          current: Math.min(uniqueAsins.length, i + 200),
+          total: prev.total
+        }));
       }
 
       const toInsert = mapped.filter((m) => !existing.has(m.asin));
@@ -281,6 +288,7 @@ export default function ProductImporter() {
 
       const importedCount = data?.length || toInsert.length;
       setImagesImported(importedCount);
+      setImagesProgress({ current: uniqueAsins.length, total: uniqueAsins.length });
 
       const byAsin = new Map();
       for (const item of toInsert) {
@@ -416,8 +424,14 @@ export default function ProductImporter() {
             </div>
           )}
           {imagesImporting && uploadMode === "images" && (
-            <div className="mt-3 text-lg font-extralight text-slate-400">
-              Importing images... {imagesImported}
+            <div className="mt-3 text-lg font-extralight text-slate-400 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>
+                Importing images...{" "}
+                {imagesProgress.total > 0
+                  ? `${Math.min(100, Math.round((imagesProgress.current / imagesProgress.total) * 100))}% (${imagesProgress.current}/${imagesProgress.total})`
+                  : `${imagesImported}`}
+              </span>
             </div>
           )}
         </div>
