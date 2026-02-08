@@ -46,11 +46,6 @@ class ProductsService {
         from += pageSize;
       }
 
-      if (error) {
-        console.error("❌ Error fetching products:", error);
-        throw error;
-      }
-
       const products = (allData || []).map(p => ({
         id: p.id,
         asin: p.asin,
