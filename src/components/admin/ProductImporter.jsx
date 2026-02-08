@@ -222,16 +222,18 @@ export default function ProductImporter() {
         return;
       }
 
+      const headers = Object.keys(rows[0] || {});
+      const normalizeHeader = (h) => h.toLowerCase().replace(/\s/g, "");
+      const asinHeader = headers.find((h) => normalizeHeader(h).includes("asin"));
+      const imageHeader = headers.find((h) => {
+        const key = normalizeHeader(h);
+        return key.includes("image") || key.includes("img") || key.includes("url");
+      });
+
       const mapped = [];
       for (const row of rows) {
-        const asin = row["ASIN"] || row["asin"] || row["Asin"] || "";
-        const imageUrl =
-          row["Image"] ||
-          row["ImageURL"] ||
-          row["image_url"] ||
-          row["URL"] ||
-          row["url"] ||
-          "";
+        const asin = (row[asinHeader] || row["ASIN"] || row["asin"] || "").trim();
+        const imageUrl = (row[imageHeader] || row["Image"] || row["ImageURL"] || row["image_url"] || row["URL"] || row["url"] || "").trim();
         if (!asin || !imageUrl) continue;
         mapped.push({
           user_id: user.id,
