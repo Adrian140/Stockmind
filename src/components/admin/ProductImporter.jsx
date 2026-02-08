@@ -203,11 +203,36 @@ export default function ProductImporter() {
           const asin = row["ASIN"] || row["asin"] || "";
           if (!asin) continue;
           const sku = row["SKU"] || row["sku"] || "";
-          const title = row["Product"] || row["Name"] || "Unknown Product";
+          const title = row["Product"] || row["Name"] || row["Title"] || "Unknown Product";
           const units = parseNumberEU(row["Units"]);
           const revenue = parseNumberEU(row["Sales"]);
           const profit = parseNumberEU(row["Net profit"] || row["Net Profit"]);
           const roi = parseNumberEU(row["ROI"]);
+
+          const refunds = parseNumberEU(row["Refunds"]);
+          const promo = parseNumberEU(row["Promo"]);
+          const ads = parseNumberEU(row["Ads"]);
+          const sponsoredProducts = parseNumberEU(row["Sponsored products (PPC)"]);
+          const sponsoredDisplay = parseNumberEU(row["Sponsored Display"]);
+          const sponsoredBrands = parseNumberEU(row["Sponsored brands (HSA)"]);
+          const sponsoredBrandsVideo = parseNumberEU(row["Sponsored Brands Video"]);
+          const googleAds = parseNumberEU(row["Google ads"]);
+          const facebookAds = parseNumberEU(row["Facebook ads"]);
+          const refundsPercent = parseNumberEU(row["% Refunds"]);
+          const sellableQuota = parseNumberEU(row["Sellable Quota"]);
+          const refundCost = parseNumberEU(row["Refund cost"] || row["Refund сost"]);
+          const amazonFees = parseNumberEU(row["Amazon fees"]);
+          const costOfGoods = parseNumberEU(row["Cost of Goods"]);
+          const vat = parseNumberEU(row["VAT"]);
+          const shipping = parseNumberEU(row["Shipping"]);
+          const grossProfit = parseNumberEU(row["Gross profit"]);
+          const estimatedPayout = parseNumberEU(row["Estimated payout"]);
+          const expenses = parseNumberEU(row["Expenses"]);
+          const margin = parseNumberEU(row["Margin"]);
+          const bsr = parseNumberEU(row["BSR"]);
+          const realAcos = parseNumberEU(row["Real ACOS"]);
+          const sessions = parseNumberEU(row["Sessions"]);
+          const unitSessionPercentage = parseNumberEU(row["Unit Session Percentage"]);
 
           const distribute = (total, count, scale) => {
             if (count <= 0) return [];
@@ -225,6 +250,24 @@ export default function ProductImporter() {
           const perDayUnits = distribute(units, days, 1);
           const perDayRevenue = distribute(revenue, days, 100);
           const perDayProfit = distribute(profit, days, 100);
+          const perDayRefunds = distribute(refunds, days, 1);
+          const perDayPromo = distribute(promo, days, 100);
+          const perDayAds = distribute(ads, days, 100);
+          const perDaySponsoredProducts = distribute(sponsoredProducts, days, 100);
+          const perDaySponsoredDisplay = distribute(sponsoredDisplay, days, 100);
+          const perDaySponsoredBrands = distribute(sponsoredBrands, days, 100);
+          const perDaySponsoredBrandsVideo = distribute(sponsoredBrandsVideo, days, 100);
+          const perDayGoogleAds = distribute(googleAds, days, 100);
+          const perDayFacebookAds = distribute(facebookAds, days, 100);
+          const perDayRefundCost = distribute(refundCost, days, 100);
+          const perDayAmazonFees = distribute(amazonFees, days, 100);
+          const perDayCostOfGoods = distribute(costOfGoods, days, 100);
+          const perDayVat = distribute(vat, days, 100);
+          const perDayShipping = distribute(shipping, days, 100);
+          const perDayGrossProfit = distribute(grossProfit, days, 100);
+          const perDayEstimatedPayout = distribute(estimatedPayout, days, 100);
+          const perDayExpenses = distribute(expenses, days, 100);
+          const perDaySessions = distribute(sessions, days, 1);
 
           for (let i = 0; i < daysList.length; i++) {
             const day = daysList[i];
@@ -234,10 +277,37 @@ export default function ProductImporter() {
               asin,
               sku,
               title,
+              product_name: title,
               units_total: perDayUnits[i] || 0,
               revenue_total: perDayRevenue[i] || 0,
               net_profit: perDayProfit[i] || 0,
               roi,
+              units: perDayUnits[i] || 0,
+              refunds: perDayRefunds[i] || 0,
+              sales: perDayRevenue[i] || 0,
+              promo: perDayPromo[i] || 0,
+              ads: perDayAds[i] || 0,
+              sponsored_products_ppc: perDaySponsoredProducts[i] || 0,
+              sponsored_display: perDaySponsoredDisplay[i] || 0,
+              sponsored_brands_hsa: perDaySponsoredBrands[i] || 0,
+              sponsored_brands_video: perDaySponsoredBrandsVideo[i] || 0,
+              google_ads: perDayGoogleAds[i] || 0,
+              facebook_ads: perDayFacebookAds[i] || 0,
+              refunds_percent: refundsPercent,
+              sellable_quota: sellableQuota,
+              refund_cost: perDayRefundCost[i] || 0,
+              amazon_fees: perDayAmazonFees[i] || 0,
+              cost_of_goods: perDayCostOfGoods[i] || 0,
+              vat: perDayVat[i] || 0,
+              shipping: perDayShipping[i] || 0,
+              gross_profit: perDayGrossProfit[i] || 0,
+              estimated_payout: perDayEstimatedPayout[i] || 0,
+              expenses: perDayExpenses[i] || 0,
+              margin,
+              bsr,
+              real_acos: realAcos,
+              sessions: perDaySessions[i] || 0,
+              unit_session_percentage: unitSessionPercentage,
               raw: null
             });
           }

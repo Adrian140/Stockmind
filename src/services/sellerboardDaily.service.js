@@ -6,6 +6,16 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500, 
       return { success: true, count: 0 };
     }
 
+    const toNumberOrNull = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const toIntOrNull = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? Math.round(num) : null;
+    };
+
     // Deduplicate within payload to avoid ON CONFLICT updating same row twice
     const deduped = new Map();
     for (const r of rows) {
@@ -26,10 +36,37 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500, 
         asin: r.asin,
         sku: r.sku,
         title: r.title,
+        product_name: r.product_name || null,
         units_total: Math.round(Number(r.units_total) || 0),
         revenue_total: Number(r.revenue_total) || 0,
         net_profit: Number(r.net_profit) || 0,
         roi: Number(r.roi) || 0,
+        units: toIntOrNull(r.units),
+        refunds: toIntOrNull(r.refunds),
+        sales: toNumberOrNull(r.sales),
+        promo: toNumberOrNull(r.promo),
+        ads: toNumberOrNull(r.ads),
+        sponsored_products_ppc: toNumberOrNull(r.sponsored_products_ppc),
+        sponsored_display: toNumberOrNull(r.sponsored_display),
+        sponsored_brands_hsa: toNumberOrNull(r.sponsored_brands_hsa),
+        sponsored_brands_video: toNumberOrNull(r.sponsored_brands_video),
+        google_ads: toNumberOrNull(r.google_ads),
+        facebook_ads: toNumberOrNull(r.facebook_ads),
+        refunds_percent: toNumberOrNull(r.refunds_percent),
+        sellable_quota: toNumberOrNull(r.sellable_quota),
+        refund_cost: toNumberOrNull(r.refund_cost),
+        amazon_fees: toNumberOrNull(r.amazon_fees),
+        cost_of_goods: toNumberOrNull(r.cost_of_goods),
+        vat: toNumberOrNull(r.vat),
+        shipping: toNumberOrNull(r.shipping),
+        gross_profit: toNumberOrNull(r.gross_profit),
+        estimated_payout: toNumberOrNull(r.estimated_payout),
+        expenses: toNumberOrNull(r.expenses),
+        margin: toNumberOrNull(r.margin),
+        bsr: toIntOrNull(r.bsr),
+        real_acos: toNumberOrNull(r.real_acos),
+        sessions: toIntOrNull(r.sessions),
+        unit_session_percentage: toNumberOrNull(r.unit_session_percentage),
         raw: r.raw || null
       }));
 
