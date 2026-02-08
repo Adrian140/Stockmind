@@ -222,7 +222,8 @@ export default function ProductImporter() {
           const sellableQuota = parseNumberEU(row["Sellable Quota"]);
           const refundCost = parseNumberEU(row["Refund cost"] || row["Refund сost"]);
           const amazonFees = parseNumberEU(row["Amazon fees"]);
-          const costOfGoods = parseNumberEU(row["Cost of Goods"]);
+          const costOfGoodsTotal = parseNumberEU(row["Cost of Goods"]);
+          const costPerUnit = units > 0 ? Math.abs(costOfGoodsTotal) / units : null;
           const vat = parseNumberEU(row["VAT"]);
           const shipping = parseNumberEU(row["Shipping"]);
           const grossProfit = parseNumberEU(row["Gross profit"]);
@@ -261,7 +262,7 @@ export default function ProductImporter() {
           const perDayFacebookAds = distribute(facebookAds, days, 100);
           const perDayRefundCost = distribute(refundCost, days, 100);
           const perDayAmazonFees = distribute(amazonFees, days, 100);
-          const perDayCostOfGoods = distribute(costOfGoods, days, 100);
+          const perDayCostOfGoods = distribute(costPerUnit || 0, days, 100);
           const perDayVat = distribute(vat, days, 100);
           const perDayShipping = distribute(shipping, days, 100);
           const perDayGrossProfit = distribute(grossProfit, days, 100);

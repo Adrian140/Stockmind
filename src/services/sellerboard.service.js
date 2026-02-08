@@ -232,7 +232,8 @@ export function mapCSVToDailyRows(csvData) {
 
     const netProfit = parseNumber(row["NetProfit"]);
     const roi = parseNumber(row["ROI"]);
-    const cost = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
+    const costTotal = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
+    const costPerUnit = units > 0 ? Math.abs(costTotal) / units : null;
 
     rows.push({
       report_date: date,
@@ -244,6 +245,7 @@ export function mapCSVToDailyRows(csvData) {
       revenue_total: Number(revenue.toFixed(2)),
       net_profit: Number(netProfit.toFixed(2)),
       roi: Number(roi.toFixed(2)),
+      cost_of_goods: costPerUnit !== null ? Number(costPerUnit.toFixed(4)) : null,
       raw: row
     });
   }
