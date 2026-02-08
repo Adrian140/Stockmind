@@ -63,56 +63,13 @@ export default function ProductImporter() {
 
       console.log("🚀 Starting import of", sellerboardProducts.length, "products...");
 
-      let successCount = 0;
-      let errorCount = 0;
+      const result = await productsService.upsertSellerboardProducts(user.id, sellerboardProducts);
 
-      for (const product of sellerboardProducts) {
-        try {
-          const productData = {
-            asin: product.ASIN || product.asin,
-            title: product.Title || product.title || "Unknown Product",
-            brand: product.Brand || product.brand || "Unknown",
-            category: product.Category || product.category || "other",
-            marketplace: product.Marketplace || product.marketplace || "DE",
-            status: "active",
-            tags: [],
-            units30d: product.Units30d || product.units30d || 0,
-            units90d: (product.Units30d || product.units30d || 0) * 3,
-            units365d: (product.Units30d || product.units30d || 0) * 12,
-            revenue30d: product.Revenue30d || product.revenue30d || 0,
-            profit30d: product.Profit30d || product.profit30d || 0,
-            profitUnit: product.ProfitUnit || product.profitUnit || 0,
-            cogs: product.COGS || product.cogs || 0,
-            bbCurrent: product.Price || product.price || 0,
-            bbAvg7d: product.Price || product.price || 0,
-            bbAvg30d: product.Price || product.price || 0,
-            volatility30d: 0.1,
-            roi: product.ROI || product.roi || 0,
-            stockQty: product.Stock || product.stock || 0,
-            daysSinceLastSale: 0,
-            peakMonths: []
-          };
-
-          const result = await productsService.saveProduct(user.id, productData);
-          if (result.success) {
-            successCount++;
-            setImported(successCount);
-          } else {
-            errorCount++;
-            console.error("Failed to import product:", product.ASIN, result.error);
-          }
-        } catch (err) {
-          errorCount++;
-          console.error("Error importing product:", product.ASIN, err);
-        }
-      }
-
-      console.log(`✅ Import complete: ${successCount} success, ${errorCount} errors`);
-      if (successCount > 0) {
-        toast.success(`Successfully imported ${successCount} products to Supabase!`);
-      }
-      if (errorCount > 0) {
-        toast.error(`Failed to import ${errorCount} products. Check console for details.`);
+      if (result.success) {
+        setImported(result.count || 0);
+        toast.success(`Successfully imported ${result.count || 0} products to Supabase!`);
+      } else {
+        toast.error(`Failed to import products. ${result.error || ""}`);
       }
 
       window.location.reload();
