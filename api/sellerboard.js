@@ -26,8 +26,22 @@ export default async function handler(req, res) {
     }
 
     // Get Sellerboard URLs from environment
+    const dailyMarketplace = (req.query.marketplace || "").toUpperCase();
+    const dailyMap = {
+      DE: process.env.SELLERBOARD_DAILY_URL_DE,
+      FR: process.env.SELLERBOARD_DAILY_URL_FR,
+      IT: process.env.SELLERBOARD_DAILY_URL_IT,
+      ES: process.env.SELLERBOARD_DAILY_URL_ES,
+      UK: process.env.SELLERBOARD_DAILY_URL_UK,
+      BE: process.env.SELLERBOARD_DAILY_URL_BE,
+      NL: process.env.SELLERBOARD_DAILY_URL_NL,
+      PL: process.env.SELLERBOARD_DAILY_URL_PL,
+      SE: process.env.SELLERBOARD_DAILY_URL_SE,
+      IE: process.env.SELLERBOARD_DAILY_URL_IE
+    };
+
     const urlMap = {
-      daily: process.env.SELLERBOARD_DAILY_URL,
+      daily: dailyMarketplace ? dailyMap[dailyMarketplace] : process.env.SELLERBOARD_DAILY_URL,
       sales_30d: process.env.SELLERBOARD_SALES_30D_URL,
       sales_monthly: process.env.SELLERBOARD_SALES_MONTHLY_URL,
       cogs: process.env.SELLERBOARD_COGS_URL,

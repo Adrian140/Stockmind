@@ -78,14 +78,20 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const importDailyRows = async () => {
       if (!user) return;
-      const response = await fetch("/api/sellerboard?reportType=daily");
-      if (!response.ok) return;
-      const csvText = await response.text();
-      const csvData = parseCSV(csvText);
-      if (csvData.length === 0) return;
-      const dailyRows = mapCSVToDailyRows(csvData);
-      const result = await upsertSellerboardDailyRows(user.id, dailyRows);
-      if (result?.success) {
+      let importedAny = false;
+      for (const mp of marketplaces) {
+        const response = await fetch(`/api/sellerboard?reportType=daily&marketplace=${mp.id}`);
+        if (!response.ok) continue;
+        const csvText = await response.text();
+        const csvData = parseCSV(csvText);
+        if (csvData.length === 0) continue;
+        const dailyRows = mapCSVToDailyRows(csvData);
+        const result = await upsertSellerboardDailyRows(user.id, dailyRows);
+        if (result?.success) {
+          importedAny = true;
+        }
+      }
+      if (importedAny) {
         await productsService.refreshProductsFromDaily(user.id);
         await loadSupabaseProducts();
       }
