@@ -475,27 +475,27 @@ export default function ProductImporter() {
     }
   };
 
-  const buildMonthlyRanges = (startDate, endDate) => {
+  const buildChunkRanges = (startDate, endDate, chunkDays = 7) => {
     const ranges = [];
     if (!startDate || !endDate) return ranges;
     let cursor = new Date(`${startDate}T00:00:00Z`);
     const end = new Date(`${endDate}T00:00:00Z`);
     while (cursor <= end) {
-      const start = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
-      const monthEnd = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0));
-      const rangeStart = start < new Date(`${startDate}T00:00:00Z`) ? new Date(`${startDate}T00:00:00Z`) : start;
-      const rangeEnd = monthEnd > end ? end : monthEnd;
+      const rangeStart = new Date(cursor);
+      const rangeEnd = new Date(cursor);
+      rangeEnd.setUTCDate(rangeEnd.getUTCDate() + (chunkDays - 1));
+      if (rangeEnd > end) rangeEnd.setTime(end.getTime());
       ranges.push({
         start: rangeStart.toISOString().slice(0, 10),
         end: rangeEnd.toISOString().slice(0, 10)
       });
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+      cursor.setUTCDate(cursor.getUTCDate() + chunkDays);
     }
     return ranges;
   };
 
   const refreshProductsByMonth = async ({ startDate, endDate, marketplace }) => {
-    const ranges = buildMonthlyRanges(startDate, endDate);
+    const ranges = buildChunkRanges(startDate, endDate, 7);
     for (const range of ranges) {
       const refresh = await productsService.refreshProductsFromDaily(user.id, {
         startDate: range.start,
