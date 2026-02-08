@@ -262,7 +262,7 @@ export default function ProductImporter() {
           const perDayFacebookAds = distribute(facebookAds, days, 100);
           const perDayRefundCost = distribute(refundCost, days, 100);
           const perDayAmazonFees = distribute(amazonFees, days, 100);
-          const perDayCostOfGoods = distribute(costPerUnit || 0, days, 100);
+          const perDayCostOfGoods = Array.from({ length: days }, () => (costPerUnit || 0));
           const perDayVat = distribute(vat, days, 100);
           const perDayShipping = distribute(shipping, days, 100);
           const perDayGrossProfit = distribute(grossProfit, days, 100);
