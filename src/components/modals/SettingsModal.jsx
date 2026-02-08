@@ -40,7 +40,7 @@ export default function SettingsModal() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/40 z-40"
             onClick={() => setSettingsOpen(false)}
           />
           <motion.div
@@ -48,7 +48,7 @@ export default function SettingsModal() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-2xl mx-4 bg-dashboard-card rounded-xl border border-dashboard-border shadow-2xl max-h-[90vh] flex flex-col"
+            className="fixed top-16 right-4 md:right-6 mt-2 z-50 w-[calc(100%-2rem)] md:w-[520px] bg-dashboard-card rounded-xl border border-dashboard-border shadow-2xl max-h-[80vh] flex flex-col"
           >
             <div className="flex items-center justify-between p-6 border-b border-dashboard-border flex-shrink-0">
               <h2 className="text-xl font-medium text-white">Application Settings</h2>

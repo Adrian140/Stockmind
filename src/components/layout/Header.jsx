@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Package, Calendar, PercentCircle, Settings, ChevronDown, Plug, LogOut, User } from "lucide-react";
+import { LayoutDashboard, Package, Calendar, PercentCircle, Settings, ChevronDown, Plug, LogOut } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 import clsx from "clsx";
@@ -59,7 +59,7 @@ export default function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <div className="relative">
             <select
               value={selectedMarketplace}
@@ -95,11 +95,7 @@ export default function Header() {
           </button>
 
           {user && (
-            <div className="flex items-center gap-2 pl-4 border-l border-dashboard-border">
-              <div className="flex items-center gap-2 text-lg font-extralight text-slate-400">
-                <User className="w-5 h-5" />
-                <span>{user.email}</span>
-              </div>
+            <div className="pl-4 border-l border-dashboard-border">
               <button
                 onClick={signOut}
                 className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-dashboard-hover transition-colors"
