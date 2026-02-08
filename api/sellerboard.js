@@ -27,6 +27,7 @@ export default async function handler(req, res) {
 
     // Get Sellerboard URLs from environment
     const urlMap = {
+      daily: process.env.SELLERBOARD_DAILY_URL,
       sales_30d: process.env.SELLERBOARD_SALES_30D_URL,
       sales_monthly: process.env.SELLERBOARD_SALES_MONTHLY_URL,
       cogs: process.env.SELLERBOARD_COGS_URL,

@@ -305,8 +305,8 @@ class SellerboardService {
       }
 
       console.log("🔄 Fetching fresh Sellerboard data...");
-      // Fetch sales data
-      const salesData = await fetchFromSellerboard("sales_30d");
+      // Fetch daily data (previous 7 days) for stable history aggregation
+      const salesData = await fetchFromSellerboard("daily");
       const products = mapCSVToProducts(salesData);
 
       // Update cache
