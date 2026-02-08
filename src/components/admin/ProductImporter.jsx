@@ -176,7 +176,16 @@ export default function ProductImporter() {
           throw new Error(result.error || "Import failed");
         }
         setHistoryImported(result.count || dailyRows.length);
-        const refresh = await productsService.refreshProductsFromDaily(user.id);
+        const dates = dailyRows.map((r) => r.report_date).filter(Boolean).sort();
+        const start = dates[0] || null;
+        const end = dates[dates.length - 1] || null;
+        const marketplaces = Array.from(new Set(dailyRows.map((r) => r.marketplace).filter(Boolean)));
+        const marketplace = marketplaces.length === 1 ? marketplaces[0] : null;
+        const refresh = await productsService.refreshProductsFromDaily(user.id, {
+          startDate: start,
+          endDate: end,
+          marketplace
+        });
         if (!refresh.success) {
           toast.error("History imported, but failed to refresh products");
         } else {
@@ -320,7 +329,11 @@ export default function ProductImporter() {
           throw new Error(result.error || "Import failed");
         }
         setHistoryImported(result.count || summaryRows.length);
-        const refresh = await productsService.refreshProductsFromDaily(user.id);
+        const refresh = await productsService.refreshProductsFromDaily(user.id, {
+          startDate: start?.toISOString().slice(0, 10),
+          endDate: end?.toISOString().slice(0, 10),
+          marketplace: selectedMarketplace
+        });
         if (!refresh.success) {
           toast.error("History imported, but failed to refresh products");
         } else {
