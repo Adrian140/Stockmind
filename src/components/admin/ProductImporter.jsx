@@ -181,11 +181,7 @@ export default function ProductImporter() {
         const end = dates[dates.length - 1] || null;
         const marketplaces = Array.from(new Set(dailyRows.map((r) => r.marketplace).filter(Boolean)));
         const marketplace = marketplaces.length === 1 ? marketplaces[0] : null;
-        const refresh = await productsService.refreshProductsFromDaily(user.id, {
-          startDate: start,
-          endDate: end,
-          marketplace
-        });
+        const refresh = await refreshProductsByMonth({ startDate: start, endDate: end, marketplace });
         if (!refresh.success) {
           toast.error("History imported, but failed to refresh products");
         } else {
@@ -329,7 +325,7 @@ export default function ProductImporter() {
           throw new Error(result.error || "Import failed");
         }
         setHistoryImported(result.count || summaryRows.length);
-        const refresh = await productsService.refreshProductsFromDaily(user.id, {
+        const refresh = await refreshProductsByMonth({
           startDate: start?.toISOString().slice(0, 10),
           endDate: end?.toISOString().slice(0, 10),
           marketplace: selectedMarketplace
@@ -477,6 +473,38 @@ export default function ProductImporter() {
     } else {
       enqueueHistoryFiles(files);
     }
+  };
+
+  const buildMonthlyRanges = (startDate, endDate) => {
+    const ranges = [];
+    if (!startDate || !endDate) return ranges;
+    let cursor = new Date(`${startDate}T00:00:00Z`);
+    const end = new Date(`${endDate}T00:00:00Z`);
+    while (cursor <= end) {
+      const start = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
+      const monthEnd = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0));
+      const rangeStart = start < new Date(`${startDate}T00:00:00Z`) ? new Date(`${startDate}T00:00:00Z`) : start;
+      const rangeEnd = monthEnd > end ? end : monthEnd;
+      ranges.push({
+        start: rangeStart.toISOString().slice(0, 10),
+        end: rangeEnd.toISOString().slice(0, 10)
+      });
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+    return ranges;
+  };
+
+  const refreshProductsByMonth = async ({ startDate, endDate, marketplace }) => {
+    const ranges = buildMonthlyRanges(startDate, endDate);
+    for (const range of ranges) {
+      const refresh = await productsService.refreshProductsFromDaily(user.id, {
+        startDate: range.start,
+        endDate: range.end,
+        marketplace
+      });
+      if (!refresh.success) return refresh;
+    }
+    return { success: true };
   };
 
   const formatDateInput = (date) => date.toISOString().slice(0, 10);
