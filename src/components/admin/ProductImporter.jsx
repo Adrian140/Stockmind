@@ -181,7 +181,13 @@ export default function ProductImporter() {
         const end = dates[dates.length - 1] || null;
         const marketplaces = Array.from(new Set(dailyRows.map((r) => r.marketplace).filter(Boolean)));
         const marketplace = marketplaces.length === 1 ? marketplaces[0] : null;
-        const refresh = await refreshProductsByMonth({ startDate: start, endDate: end, marketplace });
+        const skus = Array.from(new Set(dailyRows.map((r) => r.sku).filter(Boolean)));
+        const refresh = await refreshProductsByMonth({
+          startDate: start,
+          endDate: end,
+          marketplace,
+          skus
+        });
         if (!refresh.success) {
           toast.error("History imported, but failed to refresh products");
         } else {
@@ -325,10 +331,12 @@ export default function ProductImporter() {
           throw new Error(result.error || "Import failed");
         }
         setHistoryImported(result.count || summaryRows.length);
+        const skus = Array.from(new Set(summaryRows.map((r) => r.sku).filter(Boolean)));
         const refresh = await refreshProductsByMonth({
           startDate: start?.toISOString().slice(0, 10),
           endDate: end?.toISOString().slice(0, 10),
-          marketplace: selectedMarketplace
+          marketplace: selectedMarketplace,
+          skus
         });
         if (!refresh.success) {
           toast.error("History imported, but failed to refresh products");
@@ -494,7 +502,13 @@ export default function ProductImporter() {
     return ranges;
   };
 
-  const refreshProductsByMonth = async ({ startDate, endDate, marketplace }) => {
+  const refreshProductsByMonth = async ({ startDate, endDate, marketplace, skus }) => {
+    if (Array.isArray(skus) && skus.length > 0) {
+      return productsService.refreshProductsFromDaily(user.id, {
+        marketplace,
+        skus
+      });
+    }
     const ranges = buildChunkRanges(startDate, endDate, 7);
     for (const range of ranges) {
       const refresh = await productsService.refreshProductsFromDaily(user.id, {

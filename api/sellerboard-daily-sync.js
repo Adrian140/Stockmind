@@ -109,6 +109,7 @@ export default async function handler(req, res) {
     let imported = 0;
     let marketplaces = 0;
     const todayLocal = getTodayInBucharest();
+    const skuSet = new Set();
     for (const [, url] of entries) {
       const csvText = await fetchCsvText(url);
       const csvData = parseCSV(csvText);
@@ -117,10 +118,15 @@ export default async function handler(req, res) {
       if (rows.length === 0) continue;
       imported += await upsertDaily(supabase, userId, rows);
       marketplaces += 1;
+      rows.forEach((r) => r.sku && skuSet.add(r.sku));
     }
 
     if (imported > 0) {
-      await supabase.rpc("refresh_products_from_daily", { p_user: userId });
+      await supabase.rpc("refresh_products_from_daily_skus", {
+        p_user: userId,
+        p_skus: Array.from(skuSet),
+        p_marketplace: null
+      });
     }
 
     res.status(200).json({ ok: true, imported, marketplaces, report_date: todayLocal });

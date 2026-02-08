@@ -433,16 +433,21 @@ class ProductsService {
   async refreshProductsFromDaily(userId, options = {}) {
     try {
       if (!userId) return { success: false, error: "Missing userId" };
-      const { marketplace, startDate, endDate } = options || {};
+      const { marketplace, startDate, endDate, skus } = options || {};
       const start = startDate ? String(startDate).slice(0, 10) : null;
       const end = endDate ? String(endDate).slice(0, 10) : null;
 
-      const { error } = await supabase.rpc(
-        start || end || marketplace ? "refresh_products_from_daily_range" : "refresh_products_from_daily",
-        start || end || marketplace
-          ? { p_user: userId, p_marketplace: marketplace || null, p_start: start, p_end: end }
-          : { p_user: userId }
-      );
+      let rpcName = "refresh_products_from_daily";
+      let params = { p_user: userId };
+      if (Array.isArray(skus) && skus.length > 0) {
+        rpcName = "refresh_products_from_daily_skus";
+        params = { p_user: userId, p_skus: skus, p_marketplace: marketplace || null };
+      } else if (start || end || marketplace) {
+        rpcName = "refresh_products_from_daily_range";
+        params = { p_user: userId, p_marketplace: marketplace || null, p_start: start, p_end: end };
+      }
+
+      const { error } = await supabase.rpc(rpcName, params);
       if (error) throw error;
       this.clearCache();
       return { success: true };
