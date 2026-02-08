@@ -10,7 +10,8 @@ export default function DataTable({
   defaultSortKey,
   defaultSortDir = 'desc',
   emptyMessage = 'No data available',
-  pageSize = 50
+  pageSize = 50,
+  loading = false
 }) {
   const [sortKey, setSortKey] = useState(defaultSortKey || columns[0]?.key);
   const [sortDir, setSortDir] = useState(defaultSortDir);
@@ -48,6 +49,40 @@ export default function DataTable({
   const startIdx = (safePage - 1) * pageSize;
   const endIdx = startIdx + pageSize;
   const pagedData = sortedData.slice(startIdx, endIdx);
+
+  if (loading) {
+    return (
+      <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-hidden">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-dashboard-border bg-dashboard-bg/50">
+                {columns.map((col) => (
+                  <th
+                    key={col.key}
+                    className="px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap"
+                  >
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: Math.min(pageSize, 10) }).map((_, idx) => (
+                <tr key={idx} className="border-b border-dashboard-border last:border-b-0">
+                  {columns.map((col) => (
+                    <td key={col.key} className="px-4 py-4">
+                      <div className="h-4 w-full max-w-[140px] rounded bg-slate-700/40 animate-pulse" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   if (data.length === 0) {
     return (

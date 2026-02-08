@@ -367,6 +367,7 @@ export default function Products() {
         defaultSortKey="unitsSelected"
         onRowClick={setSelectedProduct}
         emptyMessage="No products found matching your criteria."
+        loading={rangeLoading}
       />
 
       <AnimatePresence>
