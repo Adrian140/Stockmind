@@ -47,6 +47,11 @@ export default function Products() {
             <div className="flex flex-col">
               <span className="text-lg font-mono text-slate-500">{row.asin || "-"}</span>
               <span className="text-sm font-mono text-slate-500">{row.sku || "-"}</span>
+              {row.sourceMarketplaces?.length > 0 && (
+                <span className="text-xs font-mono text-slate-500">
+                  {row.sourceMarketplaces.join(", ")}
+                </span>
+              )}
             </div>
             <div className="text-sm font-mono text-slate-400">
               COGS: €{row.cogs !== undefined && row.cogs !== null ? row.cogs.toFixed(2) : "0.00"}

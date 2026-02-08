@@ -87,15 +87,51 @@ export function AppProvider({ children }) {
   }, [supabaseProducts]);
 
   const filteredProducts = useMemo(() => {
-    const filtered = allProducts.filter(product => {
-      const productMarketplace = (product.marketplace || "").toUpperCase();
-      const marketplaceMatch = selectedMarketplace === "all" || productMarketplace === selectedMarketplace;
+    const upper = (v) => (v || "").toUpperCase();
+    let base = allProducts;
+    if (selectedMarketplace !== "all") {
+      base = base.filter((product) => upper(product.marketplace) === selectedMarketplace);
+    }
+
+    const categoryFiltered = base.filter((product) => {
       const categoryMatch = selectedCategory === "all" || product.category === selectedCategory;
-      return marketplaceMatch && categoryMatch;
+      return categoryMatch;
     });
 
-    console.log("✅ Filtered Products:", filtered.length, "from", allProducts.length);
-    return filtered;
+    if (selectedMarketplace !== "all") {
+      console.log("✅ Filtered Products:", categoryFiltered.length, "from", allProducts.length);
+      return categoryFiltered;
+    }
+
+    // Aggregate across marketplaces by SKU when "All Markets" is selected
+    const bySku = new Map();
+    for (const p of categoryFiltered) {
+      const key = p.sku || p.asin || `${p.marketplace}-${p.id}`;
+      if (!bySku.has(key)) {
+        bySku.set(key, {
+          ...p,
+          marketplace: "ALL",
+          sourceMarketplaces: new Set([upper(p.marketplace)])
+        });
+      } else {
+        const agg = bySku.get(key);
+        agg.units30d += p.units30d || 0;
+        agg.units90d += p.units90d || 0;
+        agg.units365d += p.units365d || 0;
+        agg.revenue30d += p.revenue30d || 0;
+        agg.profit30d += p.profit30d || 0;
+        agg.stockQty += p.stockQty || 0;
+        agg.sourceMarketplaces.add(upper(p.marketplace));
+      }
+    }
+
+    const aggregated = Array.from(bySku.values()).map((p) => ({
+      ...p,
+      sourceMarketplaces: Array.from(p.sourceMarketplaces)
+    }));
+
+    console.log("✅ Filtered Products:", aggregated.length, "from", allProducts.length);
+    return aggregated;
   }, [allProducts, selectedMarketplace, selectedCategory]);
 
   const buyRecommendations = useMemo(() => {
