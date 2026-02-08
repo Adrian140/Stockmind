@@ -30,11 +30,11 @@ export default function Products() {
   const [rangeLoading, setRangeLoading] = useState(false);
 
   const unitRanges = [
-    { key: '30d', label: '30D', days: 30 },
-    { key: '60d', label: '60D', days: 60 },
-    { key: '90d', label: '90D', days: 90 },
-    { key: '365d', label: '365D', days: 365 },
-    { key: 'all', label: 'All Time', days: null },
+    { key: '30d', label: '30 days', days: 30 },
+    { key: '60d', label: '60 days', days: 60 },
+    { key: '90d', label: '90 days', days: 90 },
+    { key: '365d', label: '365 days', days: 365 },
+    { key: 'all', label: 'All time', days: null },
     { key: 'custom', label: 'Custom', days: null }
   ];
 
