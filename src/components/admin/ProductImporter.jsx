@@ -30,6 +30,7 @@ export default function ProductImporter() {
   const [imagesProgress, setImagesProgress] = useState({ current: 0, total: 0 });
   const [imagesQueue, setImagesQueue] = useState([]);
   const [currentImagesFile, setCurrentImagesFile] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const parseNumberEU = (value) => {
     if (value === null || value === undefined) return 0;
@@ -316,11 +317,25 @@ export default function ProductImporter() {
   const enqueueHistoryFiles = (files) => {
     if (!files || files.length === 0) return;
     setHistoryQueue((prev) => [...prev, ...Array.from(files)]);
+    toast.success(`Queued ${files.length} history file(s)`);
   };
 
   const enqueueImageFiles = (files) => {
     if (!files || files.length === 0) return;
     setImagesQueue((prev) => [...prev, ...Array.from(files)]);
+    toast.success(`Queued ${files.length} image file(s)`);
+  };
+
+  const handleFileSelection = (files) => {
+    if (!files || files.length === 0) {
+      toast.error("No files selected");
+      return;
+    }
+    if (uploadMode === "images") {
+      enqueueImageFiles(files);
+    } else {
+      enqueueHistoryFiles(files);
+    }
   };
 
   React.useEffect(() => {
@@ -413,21 +428,38 @@ export default function ProductImporter() {
               </div>
             </div>
           )}
-          <input
-            type="file"
-            accept=".csv"
-            multiple
-            onChange={(e) => {
-              const files = e.target.files;
-              if (uploadMode === "images") {
-                enqueueImageFiles(files);
-              } else {
-                enqueueHistoryFiles(files);
-              }
-              e.target.value = "";
+          <label
+            className={`block w-full rounded-lg border border-dashed px-4 py-5 text-sm transition-colors ${
+              isDragOver ? "border-amazon-orange bg-amazon-orange/10" : "border-dashboard-border bg-dashboard-bg"
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
             }}
-            className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
-          />
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              handleFileSelection(e.dataTransfer.files);
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-slate-300">
+                Trage fișierele aici sau
+                <span className="ml-1 text-amazon-orange">alege fișiere</span>
+              </div>
+              <input
+                type="file"
+                accept=".csv,.CSV,text/csv"
+                multiple
+                onChange={(e) => {
+                  handleFileSelection(e.target.files);
+                  e.target.value = "";
+                }}
+                className="hidden"
+              />
+            </div>
+          </label>
           <div className="mt-3 flex items-center justify-between">
             <span className="text-lg font-extralight text-slate-400">
               {uploadMode === "images"
