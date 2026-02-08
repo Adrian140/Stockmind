@@ -361,6 +361,7 @@ class ProductsService {
         units_30d: p.units30d || 0,
         units_90d: p.units90d || 0,
         units_365d: p.units365d || 0,
+        units_all_time: p.unitsAllTime || 0,
         revenue_30d: p.revenue30d || 0,
         profit_30d: p.profit30d || 0,
         profit_unit: p.profitUnit || 0,

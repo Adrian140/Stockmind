@@ -134,7 +134,6 @@ export default function ProductImporter() {
           const cost = parseNumberEU(row["Cost of Goods"]);
           const roi = parseNumberEU(row["ROI"]);
           const avgUnits = units / days;
-          const avgRevenue = revenue / days;
           const avgProfit = profit / days;
           const avgCost = cost / days;
 
@@ -146,11 +145,12 @@ export default function ProductImporter() {
             marketplace: selectedMarketplace,
             status: "active",
             tags: [],
-            units30d: Math.round(avgUnits * 30),
-            units90d: Math.round(avgUnits * 90),
-            units365d: Math.round(avgUnits * 365),
-            revenue30d: Number((avgRevenue * 30).toFixed(2)),
-            profit30d: Number((avgProfit * 30).toFixed(2)),
+            units30d: 0,
+            units90d: 0,
+            units365d: 0,
+            unitsAllTime: Math.round(units),
+            revenue30d: 0,
+            profit30d: 0,
             profitUnit: avgUnits > 0 ? Number((avgProfit / avgUnits).toFixed(2)) : 0,
             cogs: avgUnits > 0 ? Number((avgCost / avgUnits).toFixed(2)) : 0,
             roi: Number(roi.toFixed(2)) || 0
