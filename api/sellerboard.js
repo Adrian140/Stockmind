@@ -27,10 +27,10 @@ export default async function handler(req, res) {
 
     // Get Sellerboard URLs from environment
     const urlMap = {
-      sales_30d: process.env.VITE_SELLERBOARD_SALES_30D_URL,
-      sales_monthly: process.env.VITE_SELLERBOARD_SALES_MONTHLY_URL,
-      cogs: process.env.VITE_SELLERBOARD_COGS_URL,
-      stock: process.env.VITE_SELLERBOARD_STOCK_URL
+      sales_30d: process.env.SELLERBOARD_SALES_30D_URL,
+      sales_monthly: process.env.SELLERBOARD_SALES_MONTHLY_URL,
+      cogs: process.env.SELLERBOARD_COGS_URL,
+      stock: process.env.SELLERBOARD_STOCK_URL
     };
 
     const sellerboardUrl = urlMap[reportType];
