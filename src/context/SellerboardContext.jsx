@@ -11,38 +11,19 @@ export function SellerboardProvider({ children }) {
   const [error, setError] = useState(null);
 
   const fetchSellerboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await sellerboardService.getAllData();
-      setProducts(data);
-      setLastSync(new Date());
-      if (data.length > 0) {
-        toast.success(`Loaded ${data.length} products from Sellerboard!`);
-      } else {
-        toast.error("No products found. Check your Sellerboard URL configuration.");
-      }
-    } catch (error) {
-      console.error("Error syncing Sellerboard data:", error);
-      setError(error.message);
-      toast.error("Failed to sync Sellerboard data.");
-    } finally {
-      setLoading(false);
-    }
+    // Sellerboard fetch disabled in frontend; data is populated by server-side sync.
+    setProducts([]);
+    setLastSync(null);
+    setError(null);
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchSellerboardData();
-
-    const interval = setInterval(() => {
-      fetchSellerboardData();
-    }, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
+    // Auto-fetch disabled: only manual refresh should load Sellerboard data.
+    return () => {};
   }, []);
 
   const refreshData = async () => {
-    sellerboardService.clearCache();
     await fetchSellerboardData();
   };
 
