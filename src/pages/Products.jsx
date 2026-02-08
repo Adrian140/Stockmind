@@ -23,11 +23,15 @@ export default function Products() {
   const allTags = [...new Set(filteredProducts.flatMap(p => p.tags || []))];
 
   const displayProducts = filteredProducts.filter(p => {
-    const searchMatch = !search || 
-      p.title.toLowerCase().includes(search.toLowerCase()) ||
-      p.asin.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku || "").toLowerCase().includes(search.toLowerCase()) ||
-      p.brand.toLowerCase().includes(search.toLowerCase());
+    const term = search.trim().toLowerCase();
+    const searchMatch = !term || Object.values(p).some((val) => {
+      if (val === null || val === undefined) return false;
+      if (Array.isArray(val)) {
+        return val.join(" ").toLowerCase().includes(term);
+      }
+      if (typeof val === "object") return false;
+      return String(val).toLowerCase().includes(term);
+    });
     const tagMatch = !tagFilter || (p.tags && p.tags.includes(tagFilter));
     return searchMatch && tagMatch;
   });
@@ -191,6 +195,7 @@ export default function Products() {
       <DataTable 
         columns={columns} 
         data={displayProducts}
+        pageSize={50}
         defaultSortKey="units30d"
         onRowClick={setSelectedProduct}
         emptyMessage="No products found matching your criteria."
