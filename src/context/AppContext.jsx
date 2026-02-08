@@ -7,12 +7,16 @@ import { products as mockProducts } from "../data/mockData";
 const AppContext = createContext(null);
 
 export const marketplaces = [
-  { id: "DE", name: "Germany", currency: "€" },
-  { id: "FR", name: "France", currency: "€" },
-  { id: "IT", name: "Italy", currency: "€" },
-  { id: "ES", name: "Spain", currency: "€" },
-  { id: "UK", name: "United Kingdom", currency: "£" },
-  { id: "US", name: "United States", currency: "$" }
+  { id: "BE", name: "Belgium", flag: "🇧🇪", currency: "€" },
+  { id: "FR", name: "France", flag: "🇫🇷", currency: "€" },
+  { id: "DE", name: "Germany", flag: "🇩🇪", currency: "€" },
+  { id: "IE", name: "Ireland", flag: "🇮🇪", currency: "€" },
+  { id: "IT", name: "Italy", flag: "🇮🇹", currency: "€" },
+  { id: "NL", name: "Netherlands", flag: "🇳🇱", currency: "€" },
+  { id: "PL", name: "Poland", flag: "🇵🇱", currency: "zł" },
+  { id: "ES", name: "Spain", flag: "🇪🇸", currency: "€" },
+  { id: "SE", name: "Sweden", flag: "🇸🇪", currency: "kr" },
+  { id: "UK", name: "United Kingdom", flag: "🇬🇧", currency: "£" }
 ];
 
 export const categories = [

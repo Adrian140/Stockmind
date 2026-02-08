@@ -1,8 +1,14 @@
 export const marketplaces = [
-  { id: "DE", name: "Germany", flag: "\uD83C\uDDE9\uD83C\uDDEA", currency: "\u20AC" },
+  { id: "BE", name: "Belgium", flag: "\uD83C\uDDE7\uD83C\uDDEA", currency: "\u20AC" },
   { id: "FR", name: "France", flag: "\uD83C\uDDEB\uD83C\uDDF7", currency: "\u20AC" },
+  { id: "DE", name: "Germany", flag: "\uD83C\uDDE9\uD83C\uDDEA", currency: "\u20AC" },
+  { id: "IE", name: "Ireland", flag: "\uD83C\uDDEE\uD83C\uDDEA", currency: "\u20AC" },
   { id: "IT", name: "Italy", flag: "\uD83C\uDDEE\uD83C\uDDF9", currency: "\u20AC" },
-  { id: "ES", name: "Spain", flag: "\uD83C\uDDEA\uD83C\uDDF8", currency: "\u20AC" }
+  { id: "NL", name: "Netherlands", flag: "\uD83C\uDDF3\uD83C\uDDF1", currency: "\u20AC" },
+  { id: "PL", name: "Poland", flag: "\uD83C\uDDF5\uD83C\uDDF1", currency: "z\u0142" },
+  { id: "ES", name: "Spain", flag: "\uD83C\uDDEA\uD83C\uDDF8", currency: "\u20AC" },
+  { id: "SE", name: "Sweden", flag: "\uD83C\uDDF8\uD83C\uDDEA", currency: "kr" },
+  { id: "UK", name: "United Kingdom", flag: "\uD83C\uDDEC\uD83C\uDDE7", currency: "\u00A3" }
 ];
 
 export const categories = [
