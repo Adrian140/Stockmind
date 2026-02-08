@@ -284,19 +284,20 @@ function mapCSVToProducts(csvData) {
     const category = row["Category"] || row["Product Group"] || "";
 
     const units =
-      parseFloat(row["UnitsOrganic"] || 0) +
-      parseFloat(row["UnitsPPC"] || 0) +
-      parseFloat(row["UnitsSponsoredProducts"] || 0) +
-      parseFloat(row["UnitsSponsoredDisplay"] || 0);
+      parseNumber(row["UnitsOrganic"]) +
+      parseNumber(row["UnitsPPC"]) +
+      parseNumber(row["UnitsSponsoredProducts"]) +
+      parseNumber(row["UnitsSponsoredDisplay"]);
 
     const revenue =
-      parseFloat(row["SalesOrganic"] || 0) +
-      parseFloat(row["SalesPPC"] || 0) +
-      parseFloat(row["SalesSponsoredProducts"] || 0) +
-      parseFloat(row["SalesSponsoredDisplay"] || 0);
+      parseNumber(row["SalesOrganic"]) +
+      parseNumber(row["SalesPPC"]) +
+      parseNumber(row["SalesSponsoredProducts"]) +
+      parseNumber(row["SalesSponsoredDisplay"]);
 
-    const netProfit = parseFloat(row["NetProfit"] || 0);
-    const roi = parseFloat(row["ROI"] || 0);
+    const netProfit = parseNumber(row["NetProfit"]);
+    const roi = parseNumber(row["ROI"]);
+    const cost = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
 
     if (!bySku.has(sku)) {
       bySku.set(sku, {
