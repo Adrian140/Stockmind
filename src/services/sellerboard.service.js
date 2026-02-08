@@ -218,19 +218,41 @@ function mapCSVToProducts(csvData) {
     agg.rows += 1;
   }
 
-  const validProducts = Array.from(byAsin.values()).map(p => ({
-    ...p,
-    ProfitUnit: p.Units30d > 0 ? p.Profit30d / p.Units30d : 0,
-    ROI: p.rows > 0 ? p.ROI / p.rows : 0
-  }));
+  const validProducts = Array.from(byAsin.values()).map(p => {
+    const profitUnit = p.Units30d > 0 ? p.Profit30d / p.Units30d : 0;
+    const roi = p.rows > 0 ? p.ROI / p.rows : 0;
+    return {
+      asin: p.ASIN,
+      title: p.Title,
+      marketplace: p.Marketplace,
+      category: p.Category,
+      units30d: Math.round(p.Units30d),
+      revenue30d: Number(p.Revenue30d.toFixed(2)),
+      profit30d: Number(p.Profit30d.toFixed(2)),
+      profitUnit: Number(profitUnit.toFixed(2)),
+      roi: Number(roi.toFixed(2)),
+      units90d: 0,
+      units365d: 0,
+      cogs: 0,
+      bbCurrent: 0,
+      bbAvg7d: 0,
+      bbAvg30d: 0,
+      volatility30d: 0,
+      stockQty: 0,
+      daysSinceLastSale: 0,
+      peakMonths: [],
+      status: "active",
+      tags: []
+    };
+  });
 
   console.log("🔧 SELLERBOARD PRODUCTS PROCESSED:");
   console.table(validProducts.slice(0, 5).map(p => ({
-    ASIN: p.ASIN,
-    Title: p.Title,
-    Marketplace: p.Marketplace,
-    Category: p.Category,
-    Units30d: p.Units30d
+    asin: p.asin,
+    title: p.title,
+    marketplace: p.marketplace,
+    category: p.category,
+    units30d: p.units30d
   })));
 
   console.log(`✅ Valid products: ${validProducts.length} / ${csvData.length}`);

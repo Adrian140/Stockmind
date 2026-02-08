@@ -327,6 +327,55 @@ class ProductsService {
     }
   }
 
+  async upsertSellerboardProducts(userId, products) {
+    try {
+      if (!userId || !Array.isArray(products) || products.length === 0) {
+        return { success: true, count: 0 };
+      }
+
+      const records = products.map(p => ({
+        user_id: userId,
+        asin: p.asin,
+        title: p.title,
+        category: p.category,
+        marketplace: p.marketplace,
+        status: p.status || "active",
+        tags: p.tags || [],
+        units_30d: p.units30d || 0,
+        units_90d: p.units90d || 0,
+        units_365d: p.units365d || 0,
+        revenue_30d: p.revenue30d || 0,
+        profit_30d: p.profit30d || 0,
+        profit_unit: p.profitUnit || 0,
+        cogs: p.cogs || 0,
+        bb_current: p.bbCurrent || 0,
+        bb_avg_7d: p.bbAvg7d || 0,
+        bb_avg_30d: p.bbAvg30d || 0,
+        volatility_30d: p.volatility30d || 0,
+        roi: p.roi || 0,
+        stock_qty: p.stockQty || 0,
+        days_since_last_sale: p.daysSinceLastSale || 0,
+        peak_months: p.peakMonths || []
+      }));
+
+      const { data, error } = await supabase
+        .from("products")
+        .upsert(records, {
+          onConflict: "user_id,asin,marketplace"
+        })
+        .select("id");
+
+      if (error) throw error;
+
+      this.clearCache();
+
+      return { success: true, count: data?.length || 0 };
+    } catch (error) {
+      console.error("❌ Error upserting Sellerboard products:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
   getMonthName(monthNum) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return months[monthNum - 1] || "Jan";

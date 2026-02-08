@@ -60,6 +60,19 @@ export function AppProvider({ children }) {
     }
   }, [user]);
 
+  useEffect(() => {
+    const importSellerboard = async () => {
+      if (!user) return;
+      if (!sellerboardProducts || sellerboardProducts.length === 0) return;
+      const result = await productsService.upsertSellerboardProducts(user.id, sellerboardProducts);
+      if (result?.success) {
+        await loadSupabaseProducts();
+      }
+    };
+
+    importSellerboard();
+  }, [user, sellerboardProducts]);
+
   const loadSupabaseProducts = async () => {
     try {
       setLoadingProducts(true);
