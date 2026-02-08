@@ -19,6 +19,8 @@ export default function ProductImporter() {
   const [historyImporting, setHistoryImporting] = useState(false);
   const [historyImported, setHistoryImported] = useState(0);
   const [historyMarketplace, setHistoryMarketplace] = useState("FR");
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
 
   const parseNumberEU = (value) => {
     if (value === null || value === undefined) return 0;
@@ -38,6 +40,17 @@ export default function ProductImporter() {
     const start = new Date(Date.UTC(Number(y1), Number(m1) - 1, Number(d1)));
     const end = new Date(Date.UTC(Number(y2), Number(m2) - 1, Number(d2)));
     return { start, end };
+  };
+
+  const eachDayInRange = (start, end) => {
+    const days = [];
+    const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+    const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+    while (current <= last) {
+      days.push(new Date(current));
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
+    return days;
   };
 
   const inferMarketplaceFromFilename = (name) => {
@@ -119,52 +132,61 @@ export default function ProductImporter() {
         }
       } else {
         // Fallback: summary file (no Date) -> approximate rolling metrics
-        const range = parseDateRangeFromFilename(historyFile.name);
+        const inferredRange = parseDateRangeFromFilename(historyFile.name);
         const inferred = inferMarketplaceFromFilename(historyFile.name);
         const selectedMarketplace = inferred || historyMarketplace;
-        const days = range ? Math.max(1, Math.round((range.end - range.start) / 86400000) + 1) : 365;
 
-        const summaryProducts = [];
+        const start = inferredRange?.start || (historyStartDate ? new Date(historyStartDate) : null);
+        const end = inferredRange?.end || (historyEndDate ? new Date(historyEndDate) : null);
+
+        if (!start || !end) {
+          throw new Error("Summary CSV needs a date range (filename or manual start/end)");
+        }
+
+        const daysList = eachDayInRange(start, end);
+        const days = Math.max(1, daysList.length);
+
+        const summaryRows = [];
         for (const row of csvData) {
           const asin = row["ASIN"] || row["asin"] || "";
           if (!asin) continue;
+          const sku = row["SKU"] || row["sku"] || "";
+          const title = row["Product"] || row["Name"] || "Unknown Product";
           const units = parseNumberEU(row["Units"]);
           const revenue = parseNumberEU(row["Sales"]);
           const profit = parseNumberEU(row["Net profit"] || row["Net Profit"]);
-          const cost = parseNumberEU(row["Cost of Goods"]);
           const roi = parseNumberEU(row["ROI"]);
-          const avgUnits = units / days;
-          const avgProfit = profit / days;
-          const avgCost = cost / days;
 
-          const productData = {
-            asin,
-            sku: row["SKU"] || row["sku"] || "",
-            title: row["Product"] || row["Name"] || "Unknown Product",
-            category: "other",
-            marketplace: selectedMarketplace,
-            status: "active",
-            tags: [],
-            units30d: 0,
-            units90d: 0,
-            units365d: 0,
-            unitsAllTime: Math.round(units),
-            revenue30d: 0,
-            profit30d: 0,
-            profitUnit: avgUnits > 0 ? Number((avgProfit / avgUnits).toFixed(2)) : 0,
-            cogs: avgUnits > 0 ? Number((avgCost / avgUnits).toFixed(2)) : 0,
-            roi: Number(roi.toFixed(2)) || 0
-          };
-          summaryProducts.push(productData);
+          const perDayUnits = units / days;
+          const perDayRevenue = revenue / days;
+          const perDayProfit = profit / days;
+
+          for (const day of daysList) {
+            summaryRows.push({
+              report_date: day.toISOString().slice(0, 10),
+              marketplace: selectedMarketplace,
+              asin,
+              sku,
+              title,
+              units_total: perDayUnits,
+              revenue_total: perDayRevenue,
+              net_profit: perDayProfit,
+              roi,
+              raw: null
+            });
+          }
         }
-        const result = await productsService.upsertSellerboardProducts(user.id, summaryProducts);
-        const importedCount = result.count || summaryProducts.length;
-        setHistoryImported(importedCount);
-        if (result.success) {
-          toast.success(`Imported ${importedCount} products from summary CSV`);
-          window.location.reload();
+
+        const result = await upsertSellerboardDailyRows(user.id, summaryRows, 500);
+        if (!result.success) {
+          throw new Error(result.error || "Import failed");
+        }
+        setHistoryImported(result.count || summaryRows.length);
+        const refresh = await productsService.refreshProductsFromDaily(user.id);
+        if (!refresh.success) {
+          toast.error("History imported, but failed to refresh products");
         } else {
-          toast.error(`Import failed: ${result.error || "Unknown error"}`);
+          toast.success(`Imported ${result.count} daily rows from summary CSV`);
         }
       }
     } catch (error) {
@@ -211,6 +233,24 @@ export default function ProductImporter() {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="mb-3">
+            <label className="block text-sm text-slate-400 mb-1">Summary Date Range (if file has no Date)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={historyStartDate}
+                onChange={(e) => setHistoryStartDate(e.target.value)}
+                className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+              />
+              <span className="text-slate-500 text-sm">to</span>
+              <input
+                type="date"
+                value={historyEndDate}
+                onChange={(e) => setHistoryEndDate(e.target.value)}
+                className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+              />
+            </div>
           </div>
           <input
             type="file"
