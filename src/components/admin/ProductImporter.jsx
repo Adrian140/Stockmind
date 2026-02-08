@@ -63,6 +63,27 @@ export default function ProductImporter() {
     return Number.isFinite(num) ? num : 0;
   };
 
+  const normalizeImageUrl = (value) => {
+    if (!value) return "";
+    const trimmed = String(value).trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          const first = parsed.find((item) => typeof item === "string" && item.trim());
+          if (first) return first.trim();
+        }
+      } catch (error) {
+        // fall through to string cleanup
+      }
+      const inner = trimmed.replace(/^\[\s*"?/, "").replace(/"?\s*\]$/, "");
+      const first = inner.split(",")[0] || "";
+      return first.trim().replace(/^"+|"+$/g, "");
+    }
+    return trimmed.replace(/^"+|"+$/g, "");
+  };
+
   const parseDateRangeFromFilename = (name) => {
     if (!name) return null;
     const match = name.match(/(\d{2})_(\d{2})_(\d{4})-(\d{2})_(\d{2})_(\d{4})/);
@@ -188,20 +209,34 @@ export default function ProductImporter() {
           const profit = parseNumberEU(row["Net profit"] || row["Net Profit"]);
           const roi = parseNumberEU(row["ROI"]);
 
-          const perDayUnits = units / days;
-          const perDayRevenue = revenue / days;
-          const perDayProfit = profit / days;
+          const distribute = (total, count, scale) => {
+            if (count <= 0) return [];
+            const totalScaled = Math.round((total || 0) * scale);
+            const base = Math.trunc(totalScaled / count);
+            let remainder = totalScaled - base * count;
+            const step = remainder > 0 ? 1 : -1;
+            const result = new Array(count).fill(base);
+            for (let i = 0; i < Math.abs(remainder); i++) {
+              result[i] += step;
+            }
+            return result.map((v) => v / scale);
+          };
 
-          for (const day of daysList) {
+          const perDayUnits = distribute(units, days, 1);
+          const perDayRevenue = distribute(revenue, days, 100);
+          const perDayProfit = distribute(profit, days, 100);
+
+          for (let i = 0; i < daysList.length; i++) {
+            const day = daysList[i];
             summaryRows.push({
               report_date: day.toISOString().slice(0, 10),
               marketplace: selectedMarketplace,
               asin,
               sku,
               title,
-              units_total: perDayUnits,
-              revenue_total: perDayRevenue,
-              net_profit: perDayProfit,
+              units_total: perDayUnits[i] || 0,
+              revenue_total: perDayRevenue[i] || 0,
+              net_profit: perDayProfit[i] || 0,
               roi,
               raw: null
             });
@@ -261,7 +296,8 @@ export default function ProductImporter() {
       const mapped = [];
       for (const row of rows) {
         const asin = (row[asinHeader] || row["ASIN"] || row["asin"] || "").trim();
-        const imageUrl = (row[imageHeader] || row["Image"] || row["ImageURL"] || row["image_url"] || row["URL"] || row["url"] || "").trim();
+        const rawImageUrl = row[imageHeader] || row["Image"] || row["ImageURL"] || row["image_url"] || row["image_urls"] || row["ImageURLs"] || row["URL"] || row["url"] || "";
+        const imageUrl = normalizeImageUrl(rawImageUrl);
         if (!asin || !imageUrl) continue;
         mapped.push({
           user_id: user.id,
