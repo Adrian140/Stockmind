@@ -7,6 +7,7 @@ import { useApp } from "../../context/AppContext";
 import { productsService } from "../../services/products.service";
 import { parseCSV, mapCSVToDailyRows } from "../../services/sellerboard.service";
 import { upsertSellerboardDailyRows } from "../../services/sellerboardDaily.service";
+import { supabase } from "../../lib/supabase";
 import toast from "react-hot-toast";
 
 export default function ProductImporter() {
@@ -21,6 +22,9 @@ export default function ProductImporter() {
   const [historyMarketplace, setHistoryMarketplace] = useState("FR");
   const [historyStartDate, setHistoryStartDate] = useState("");
   const [historyEndDate, setHistoryEndDate] = useState("");
+  const [uploadMode, setUploadMode] = useState("history");
+  const [imagesImporting, setImagesImporting] = useState(false);
+  const [imagesImported, setImagesImported] = useState(0);
 
   const parseNumberEU = (value) => {
     if (value === null || value === undefined) return 0;
@@ -197,6 +201,103 @@ export default function ProductImporter() {
     }
   };
 
+  const importImagesCsv = async () => {
+    if (!user) {
+      toast.error("You must be logged in to import images");
+      return;
+    }
+    if (!historyFile) {
+      toast.error("Select an image CSV file first");
+      return;
+    }
+
+    try {
+      setImagesImporting(true);
+      setImagesImported(0);
+
+      const text = await historyFile.text();
+      const rows = parseCSV(text);
+      if (!rows.length) {
+        toast.error("CSV has no data rows");
+        return;
+      }
+
+      const mapped = [];
+      for (const row of rows) {
+        const asin = row["ASIN"] || row["asin"] || row["Asin"] || "";
+        const imageUrl =
+          row["Image"] ||
+          row["ImageURL"] ||
+          row["image_url"] ||
+          row["URL"] ||
+          row["url"] ||
+          "";
+        if (!asin || !imageUrl) continue;
+        mapped.push({
+          user_id: user.id,
+          asin,
+          image_url: imageUrl,
+          source: "upload",
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      if (!mapped.length) {
+        toast.error("No ASIN + image URL pairs found in CSV");
+        return;
+      }
+
+      const uniqueAsins = Array.from(new Set(mapped.map((m) => m.asin)));
+      const existing = new Set();
+      for (let i = 0; i < uniqueAsins.length; i += 200) {
+        const batch = uniqueAsins.slice(i, i + 200);
+        const { data, error } = await supabase
+          .from("asin_images")
+          .select("asin")
+          .eq("user_id", user.id)
+          .in("asin", batch);
+        if (error) throw error;
+        (data || []).forEach((row) => existing.add(row.asin));
+      }
+
+      const toInsert = mapped.filter((m) => !existing.has(m.asin));
+
+      if (!toInsert.length) {
+        toast.success("No new images to import");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("asin_images")
+        .insert(toInsert)
+        .select("asin");
+      if (error) throw error;
+
+      const importedCount = data?.length || toInsert.length;
+      setImagesImported(importedCount);
+
+      const byAsin = new Map();
+      for (const item of toInsert) {
+        if (!byAsin.has(item.asin)) byAsin.set(item.asin, item.image_url);
+      }
+      for (const [asin, imageUrl] of byAsin.entries()) {
+        await supabase
+          .from("products")
+          .update({ image_url: imageUrl })
+          .eq("user_id", user.id)
+          .eq("asin", asin)
+          .is("image_url", null);
+      }
+
+      toast.success(`Imported ${importedCount} new images`);
+    } catch (error) {
+      console.error("Error importing images:", error);
+      toast.error("Failed to import images");
+    } finally {
+      setImagesImporting(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -218,14 +319,33 @@ export default function ProductImporter() {
       <div className="space-y-4">
         <div className="bg-dashboard-bg rounded-lg p-4">
           <p className="text-lg font-extralight text-slate-300 mb-2">
-            Import Sellerboard full history (CSV)
+            Import Sellerboard data (CSV)
           </p>
+          <div className="mb-3 flex items-center gap-2">
+            <button
+              onClick={() => setUploadMode("history")}
+              className={`px-3 py-1.5 rounded-md text-sm font-light transition-colors ${
+                uploadMode === "history" ? "bg-amazon-orange text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              History CSV
+            </button>
+            <button
+              onClick={() => setUploadMode("images")}
+              className={`px-3 py-1.5 rounded-md text-sm font-light transition-colors ${
+                uploadMode === "images" ? "bg-amazon-orange text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Add Images CSV
+            </button>
+          </div>
           <div className="mb-3">
             <label className="block text-sm text-slate-400 mb-1">Marketplace</label>
             <select
               value={historyMarketplace}
               onChange={(e) => setHistoryMarketplace(e.target.value)}
               className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+              disabled={uploadMode === "images"}
             >
               {marketplaces.map((mp) => (
                 <option key={mp.id} value={mp.id}>
@@ -234,24 +354,26 @@ export default function ProductImporter() {
               ))}
             </select>
           </div>
-          <div className="mb-3">
-            <label className="block text-sm text-slate-400 mb-1">Summary Date Range (if file has no Date)</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={historyStartDate}
-                onChange={(e) => setHistoryStartDate(e.target.value)}
-                className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
-              />
-              <span className="text-slate-500 text-sm">to</span>
-              <input
-                type="date"
-                value={historyEndDate}
-                onChange={(e) => setHistoryEndDate(e.target.value)}
-                className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
-              />
+          {uploadMode === "history" && (
+            <div className="mb-3">
+              <label className="block text-sm text-slate-400 mb-1">Summary Date Range (if file has no Date)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={historyStartDate}
+                  onChange={(e) => setHistoryStartDate(e.target.value)}
+                  className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+                />
+                <span className="text-slate-500 text-sm">to</span>
+                <input
+                  type="date"
+                  value={historyEndDate}
+                  onChange={(e) => setHistoryEndDate(e.target.value)}
+                  className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+                />
+              </div>
             </div>
-          </div>
+          )}
           <input
             type="file"
             accept=".csv"
@@ -263,16 +385,27 @@ export default function ProductImporter() {
               {historyFile ? historyFile.name : "No file selected"}
             </span>
             <button
-              onClick={importHistoryCsv}
-              disabled={historyImporting || !historyFile}
+              onClick={uploadMode === "images" ? importImagesCsv : importHistoryCsv}
+              disabled={(uploadMode === "images" ? imagesImporting : historyImporting) || !historyFile}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {historyImporting ? "Importing..." : "Import History CSV"}
+              {uploadMode === "images"
+                ? imagesImporting
+                  ? "Importing..."
+                  : "Import Images CSV"
+                : historyImporting
+                  ? "Importing..."
+                  : "Import History CSV"}
             </button>
           </div>
-          {historyImporting && (
+          {historyImporting && uploadMode === "history" && (
             <div className="mt-3 text-lg font-extralight text-slate-400">
               Importing history... {historyImported}
+            </div>
+          )}
+          {imagesImporting && uploadMode === "images" && (
+            <div className="mt-3 text-lg font-extralight text-slate-400">
+              Importing images... {imagesImported}
             </div>
           )}
         </div>
