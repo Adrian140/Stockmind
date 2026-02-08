@@ -467,7 +467,11 @@ export default function ProductImporter() {
   };
 
   const formatDateInput = (date) => date.toISOString().slice(0, 10);
-  const parseDateInput = (value) => new Date(`${value}T00:00:00`);
+  const parseDateInput = (value) => {
+    const [y, m, d] = String(value).split("-").map((v) => parseInt(v, 10));
+    if (!y || !m || !d) return new Date();
+    return new Date(Date.UTC(y, m - 1, d));
+  };
   const isLastDayOfMonth = (date) => {
     const test = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
     return date.getUTCDate() === test.getUTCDate();
