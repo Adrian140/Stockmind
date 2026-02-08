@@ -335,7 +335,7 @@ class ProductsService {
 
       const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-      const records = products.map(p => ({
+      const recordsRaw = products.map(p => ({
         user_id: userId,
         asin: p.asin,
         title: p.title,
@@ -359,6 +359,13 @@ class ProductsService {
         days_since_last_sale: p.daysSinceLastSale || 0,
         peak_months: p.peakMonths || []
       }));
+
+      const deduped = new Map();
+      for (const r of recordsRaw) {
+        const key = `${r.user_id}|${r.asin}|${r.marketplace}`;
+        if (!deduped.has(key)) deduped.set(key, r);
+      }
+      const records = Array.from(deduped.values());
 
       const { data, error } = await supabase
         .from("products")
