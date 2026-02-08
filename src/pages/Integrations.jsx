@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 import SellerboardStatus from "../components/widgets/SellerboardStatus";
 import ProductImporter from "../components/admin/ProductImporter";
+import { parseCSV } from "../services/sellerboard.service";
 
 export default function Integrations() {
   const { user } = useAuth();
@@ -88,10 +89,44 @@ export default function Integrations() {
         return;
       }
 
+      const normalizeImageUrl = (value) => {
+        if (!value) return "";
+        const trimmed = String(value).trim();
+        if (!trimmed) return "";
+
+        if (trimmed.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+              const first = parsed.find((item) => typeof item === "string" && item.trim());
+              if (first) return first.trim();
+            }
+          } catch (error) {
+            // Fallback below for malformed JSON-like arrays
+          }
+
+          const inner = trimmed.replace(/^\[\s*"?/, "").replace(/"?\s*\]$/, "");
+          const first = inner.split(",")[0] || "";
+          return first.trim().replace(/^"+|"+$/g, "");
+        }
+
+        return trimmed.replace(/^"+|"+$/g, "");
+      };
+
       const mapped = [];
       for (const row of rows) {
         const asin = row["ASIN"] || row["asin"] || row["Asin"] || "";
-        const imageUrl = row["Image"] || row["ImageURL"] || row["image_url"] || row["URL"] || row["url"] || "";
+        const rawImageUrl =
+          row["Image"] ||
+          row["ImageURL"] ||
+          row["image_url"] ||
+          row["image_urls"] ||
+          row["ImageURLs"] ||
+          row["Image Urls"] ||
+          row["URL"] ||
+          row["url"] ||
+          "";
+        const imageUrl = normalizeImageUrl(rawImageUrl);
         if (!asin || !imageUrl) continue;
         mapped.push({
           user_id: user.id,
