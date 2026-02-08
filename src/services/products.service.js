@@ -39,6 +39,7 @@ class ProductsService {
       const products = (data || []).map(p => ({
         id: p.id,
         asin: p.asin,
+        sku: p.sku,
         title: p.title,
         brand: p.brand,
         category: p.category,
@@ -200,6 +201,7 @@ class ProductsService {
         .insert({
           user_id: userId,
           asin: productData.asin,
+          sku: productData.sku,
           title: productData.title,
           brand: productData.brand,
           category: productData.category,
@@ -240,6 +242,7 @@ class ProductsService {
   async updateProduct(productId, userId, updates) {
     try {
       const dbUpdates = {};
+      if (updates.sku !== undefined) dbUpdates.sku = updates.sku;
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.brand !== undefined) dbUpdates.brand = updates.brand;
       if (updates.category !== undefined) dbUpdates.category = updates.category;
@@ -338,6 +341,7 @@ class ProductsService {
       const recordsRaw = products.map(p => ({
         user_id: userId,
         asin: p.asin,
+        sku: p.sku,
         title: p.title,
         category: p.category,
         marketplace: p.marketplace,
@@ -362,7 +366,7 @@ class ProductsService {
 
       const deduped = new Map();
       for (const r of recordsRaw) {
-        const key = `${r.user_id}|${r.asin}|${r.marketplace}`;
+        const key = `${r.user_id}|${r.sku}|${r.marketplace}`;
         if (!deduped.has(key)) deduped.set(key, r);
       }
       const records = Array.from(deduped.values());
@@ -370,7 +374,7 @@ class ProductsService {
       const { data, error } = await supabase
         .from("products")
         .upsert(records, {
-          onConflict: "user_id,asin,marketplace"
+          onConflict: "user_id,sku,marketplace"
         })
         .select("id");
 

@@ -140,6 +140,7 @@ export default function ProductImporter() {
 
           const productData = {
             asin,
+            sku: row["SKU"] || row["sku"] || "",
             title: row["Product"] || row["Name"] || "Unknown Product",
             category: "other",
             marketplace: selectedMarketplace,

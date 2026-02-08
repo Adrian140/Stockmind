@@ -26,6 +26,7 @@ export default function Products() {
     const searchMatch = !search || 
       p.title.toLowerCase().includes(search.toLowerCase()) ||
       p.asin.toLowerCase().includes(search.toLowerCase()) ||
+      (p.sku || "").toLowerCase().includes(search.toLowerCase()) ||
       p.brand.toLowerCase().includes(search.toLowerCase());
     const tagMatch = !tagFilter || (p.tags && p.tags.includes(tagFilter));
     return searchMatch && tagMatch;
@@ -38,9 +39,14 @@ export default function Products() {
       render: (val, row) => (
         <div className="max-w-xs">
           <p className="text-lg font-light text-white truncate">{val}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-lg font-mono text-slate-500">{row.asin}</span>
-            <span className="text-lg font-light text-slate-500">• {row.brand}</span>
+          <div className="mt-1 flex items-start justify-between gap-3">
+            <div className="flex flex-col">
+              <span className="text-lg font-mono text-slate-500">{row.asin || "-"}</span>
+              <span className="text-sm font-mono text-slate-500">{row.sku || "-"}</span>
+            </div>
+            <div className="text-sm font-mono text-slate-400">
+              COGS: €{row.cogs !== undefined && row.cogs !== null ? row.cogs.toFixed(2) : "0.00"}
+            </div>
           </div>
         </div>
       )

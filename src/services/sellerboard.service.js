@@ -213,9 +213,10 @@ export function mapCSVToDailyRows(csvData) {
   const rows = [];
   for (const row of csvData) {
     const asin = row["ASIN"] || row["asin"] || "";
+    const sku = row["SKU"] || row["sku"] || "";
     const marketplace = row["Marketplace"] || row["marketplace"] || "";
     const date = parseCsvDate(row["Date"]);
-    if (!asin || !marketplace || !date) continue;
+    if (!asin || !sku || !marketplace || !date) continue;
 
     const units =
       parseNumber(row["UnitsOrganic"]) +
@@ -237,7 +238,7 @@ export function mapCSVToDailyRows(csvData) {
       report_date: date,
       marketplace: mapMarketplace(marketplace),
       asin,
-      sku: row["SKU"] || "",
+      sku,
       title: row["Name"] || row["Title"] || "",
       units_total: Math.round(units),
       revenue_total: Number(revenue.toFixed(2)),
@@ -270,11 +271,13 @@ function mapCSVToProducts(csvData) {
     console.log("🔍 AVAILABLE COLUMNS IN CSV:", Object.keys(csvData[0]));
   }
 
-  // Aggregate daily rows into 30d per ASIN
-  const byAsin = new Map();
+  // Aggregate daily rows into 30d per SKU
+  const bySku = new Map();
   for (const row of csvData) {
     const asin = row["ASIN"] || row["asin"] || "";
+    const sku = row["SKU"] || row["sku"] || "";
     if (!asin) continue;
+    if (!sku) continue;
 
     const title = row["Name"] || row["Title"] || row["Product Name"] || "";
     const marketplace = row["Marketplace"] || row["marketplace"] || "";
@@ -295,9 +298,10 @@ function mapCSVToProducts(csvData) {
     const netProfit = parseFloat(row["NetProfit"] || 0);
     const roi = parseFloat(row["ROI"] || 0);
 
-    if (!byAsin.has(asin)) {
-      byAsin.set(asin, {
+    if (!bySku.has(sku)) {
+      bySku.set(sku, {
         ASIN: asin,
+        SKU: sku,
         Title: title,
         Marketplace: mapMarketplace(marketplace),
         Category: mapCategory(category),
@@ -310,7 +314,7 @@ function mapCSVToProducts(csvData) {
       });
     }
 
-    const agg = byAsin.get(asin);
+    const agg = bySku.get(sku);
     agg.Units30d += units;
     agg.Revenue30d += revenue;
     agg.Profit30d += netProfit;
@@ -319,12 +323,13 @@ function mapCSVToProducts(csvData) {
     agg.rows += 1;
   }
 
-  const validProducts = Array.from(byAsin.values()).map(p => {
+  const validProducts = Array.from(bySku.values()).map(p => {
     const profitUnit = p.Units30d > 0 ? p.Profit30d / p.Units30d : 0;
     const cogs = p.Units30d > 0 ? p.CostTotal / p.Units30d : 0;
     const roi = p.rows > 0 ? p.ROI / p.rows : 0;
     return {
       asin: p.ASIN,
+      sku: p.SKU,
       title: p.Title,
       marketplace: p.Marketplace,
       category: p.Category,
@@ -352,6 +357,7 @@ function mapCSVToProducts(csvData) {
   console.log("🔧 SELLERBOARD PRODUCTS PROCESSED:");
   console.table(validProducts.slice(0, 5).map(p => ({
     asin: p.asin,
+    sku: p.sku,
     title: p.title,
     marketplace: p.marketplace,
     category: p.category,

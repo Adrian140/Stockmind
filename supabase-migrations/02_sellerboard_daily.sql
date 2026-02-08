@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS sellerboard_daily (
   report_date DATE NOT NULL,
   marketplace TEXT NOT NULL,
   asin TEXT NOT NULL,
-  sku TEXT,
+  sku TEXT NOT NULL,
   title TEXT,
   units_total INTEGER DEFAULT 0,
   revenue_total DECIMAL(10,2) DEFAULT 0,
@@ -19,13 +19,15 @@ CREATE TABLE IF NOT EXISTS sellerboard_daily (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sellerboard_daily_unique
-  ON sellerboard_daily(user_id, asin, marketplace, report_date);
+  ON sellerboard_daily(user_id, sku, marketplace, report_date);
 
 CREATE INDEX IF NOT EXISTS idx_sellerboard_daily_user_id
   ON sellerboard_daily(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_sellerboard_daily_asin
   ON sellerboard_daily(asin);
+CREATE INDEX IF NOT EXISTS idx_sellerboard_daily_sku
+  ON sellerboard_daily(sku);
 
 CREATE INDEX IF NOT EXISTS idx_sellerboard_daily_date
   ON sellerboard_daily(report_date);
@@ -56,6 +58,7 @@ AS $$
   INSERT INTO products (
     user_id,
     asin,
+    sku,
     title,
     category,
     marketplace,
@@ -72,6 +75,7 @@ AS $$
   SELECT
     user_id,
     asin,
+    sku,
     MAX(title) AS title,
     'other' AS category,
     marketplace,
@@ -91,8 +95,8 @@ AS $$
     AVG(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN roi ELSE NULL END) AS roi
   FROM sellerboard_daily
   WHERE user_id = p_user
-  GROUP BY user_id, asin, marketplace
-  ON CONFLICT (user_id, asin, marketplace)
+  GROUP BY user_id, asin, sku, marketplace
+  ON CONFLICT (user_id, sku, marketplace)
   DO UPDATE SET
     title = EXCLUDED.title,
     category = EXCLUDED.category,

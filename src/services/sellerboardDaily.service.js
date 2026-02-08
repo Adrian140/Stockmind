@@ -9,7 +9,7 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
     // Deduplicate within payload to avoid ON CONFLICT updating same row twice
     const deduped = new Map();
     for (const r of rows) {
-      const key = `${r.report_date}|${r.marketplace}|${r.asin}`;
+      const key = `${r.report_date}|${r.marketplace}|${r.sku}`;
       if (!deduped.has(key)) {
         deduped.set(key, r);
       }
