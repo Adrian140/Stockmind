@@ -124,7 +124,7 @@ export default function ProductImporter() {
         const selectedMarketplace = inferred || historyMarketplace;
         const days = range ? Math.max(1, Math.round((range.end - range.start) / 86400000) + 1) : 365;
 
-        let successCount = 0;
+        const summaryProducts = [];
         for (const row of csvData) {
           const asin = row["ASIN"] || row["asin"] || "";
           if (!asin) continue;
@@ -151,18 +151,16 @@ export default function ProductImporter() {
             profitUnit: avgUnits > 0 ? Number((avgProfit / avgUnits).toFixed(2)) : 0,
             roi: Number(roi.toFixed(2)) || 0
           };
-
-          const result = await productsService.saveProduct(user.id, productData);
-          if (result.success) {
-            successCount++;
-          }
+          summaryProducts.push(productData);
         }
-        setHistoryImported(successCount);
-        if (successCount > 0) {
-          toast.success(`Imported ${successCount} products from summary CSV`);
+        const result = await productsService.upsertSellerboardProducts(user.id, summaryProducts);
+        const importedCount = result.count || summaryProducts.length;
+        setHistoryImported(importedCount);
+        if (result.success) {
+          toast.success(`Imported ${importedCount} products from summary CSV`);
           window.location.reload();
         } else {
-          toast.error("No products imported from summary CSV");
+          toast.error(`Import failed: ${result.error || "Unknown error"}`);
         }
       }
     } catch (error) {
