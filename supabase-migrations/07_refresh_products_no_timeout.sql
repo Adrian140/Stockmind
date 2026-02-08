@@ -41,7 +41,7 @@ BEGIN
       SELECT d2.cost_of_goods
       FROM sellerboard_daily d2
       WHERE d2.user_id = d.user_id
-        AND d2.asin = d.asin
+        AND d2.sku = d.sku
         AND d2.marketplace = d.marketplace
         AND d2.cost_of_goods IS NOT NULL
       ORDER BY d2.report_date DESC
