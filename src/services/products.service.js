@@ -46,12 +46,19 @@ class ProductsService {
         from += pageSize;
       }
 
+      const { data: imageData } = await supabase
+        .from("asin_images")
+        .select("asin,image_url")
+        .eq("user_id", userId);
+
+      const imageMap = new Map((imageData || []).map((row) => [row.asin, row.image_url]));
+
       const products = (allData || []).map(p => ({
         id: p.id,
         asin: p.asin,
         sku: p.sku,
         title: p.title,
-        imageUrl: p.image_url || p.image || null,
+        imageUrl: p.image_url || imageMap.get(p.asin) || p.image || null,
         brand: p.brand,
         category: p.category,
         targetUser: p.target_user,

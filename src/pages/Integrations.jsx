@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Database, Key, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { parseCSV } from "../services/sellerboard.service";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 import SellerboardStatus from "../components/widgets/SellerboardStatus";
@@ -12,6 +13,9 @@ export default function Integrations() {
   const [sellerboardKey, setSellerboardKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [imagesFile, setImagesFile] = useState(null);
+  const [imagesImporting, setImagesImporting] = useState(false);
+  const [imagesImported, setImagesImported] = useState(0);
 
   useEffect(() => {
     loadIntegrations();
@@ -64,6 +68,75 @@ export default function Integrations() {
       toast.error("Failed to save API keys");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const importImagesCsv = async () => {
+    if (!user) return;
+    if (!imagesFile) {
+      toast.error("Select an image CSV first");
+      return;
+    }
+
+    try {
+      setImagesImporting(true);
+      setImagesImported(0);
+
+      const text = await imagesFile.text();
+      const rows = parseCSV(text);
+      if (!rows.length) {
+        toast.error("CSV has no data rows");
+        return;
+      }
+
+      const mapped = [];
+      for (const row of rows) {
+        const asin = row["ASIN"] || row["asin"] || row["Asin"] || "";
+        const imageUrl = row["Image"] || row["ImageURL"] || row["image_url"] || row["URL"] || row["url"] || "";
+        if (!asin || !imageUrl) continue;
+        mapped.push({
+          user_id: user.id,
+          asin,
+          image_url: imageUrl,
+          source: "upload",
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      if (!mapped.length) {
+        toast.error("No ASIN + image URL pairs found in CSV");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("asin_images")
+        .upsert(mapped, { onConflict: "user_id,asin" })
+        .select("asin");
+
+      if (error) throw error;
+
+      const importedCount = data?.length || mapped.length;
+      setImagesImported(importedCount);
+
+      const byAsin = new Map();
+      for (const item of mapped) {
+        if (!byAsin.has(item.asin)) byAsin.set(item.asin, item.image_url);
+      }
+      for (const [asin, imageUrl] of byAsin.entries()) {
+        await supabase
+          .from("products")
+          .update({ image_url: imageUrl })
+          .eq("user_id", user.id)
+          .eq("asin", asin)
+          .is("image_url", null);
+      }
+
+      toast.success(`Imported ${importedCount} images`);
+    } catch (error) {
+      console.error("Error importing images:", error);
+      toast.error("Failed to import images");
+    } finally {
+      setImagesImporting(false);
     }
   };
 
@@ -179,6 +252,46 @@ export default function Integrations() {
       <SellerboardStatus />
 
       <ProductImporter />
+
+      <div className="bg-dashboard-card border border-dashboard-border rounded-lg p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 rounded-lg bg-slate-500/10">
+            <Database className="w-6 h-6 text-slate-300" />
+          </div>
+          <div>
+            <h2 className="text-xl font-medium text-white">Product Images</h2>
+            <p className="text-lg font-extralight text-slate-400">
+              Upload an ASIN → Image URL CSV to seed images before Keepa.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => setImagesFile(e.target.files?.[0] || null)}
+            className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-extralight text-slate-400">
+              {imagesFile ? imagesFile.name : "No file selected"}
+            </span>
+            <button
+              onClick={importImagesCsv}
+              disabled={imagesImporting || !imagesFile}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {imagesImporting ? "Importing..." : "Import Images CSV"}
+            </button>
+          </div>
+          {imagesImporting && (
+            <div className="text-lg font-extralight text-slate-400">
+              Importing images... {imagesImported}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="flex justify-end">
         <button
