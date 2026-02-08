@@ -81,6 +81,30 @@ export function parseCSV(csvText) {
     return [];
   }
 
+  const firstLine = csvText.split(/\r?\n/)[0] || "";
+  const countDelimiter = (line, delimiter) => {
+    let inQuotes = false;
+    let count = 0;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const next = line[i + 1];
+      if (char === '"' && next === '"') {
+        i += 1;
+        continue;
+      }
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (!inQuotes && char === delimiter) count += 1;
+    }
+    return count;
+  };
+
+  const commaCount = countDelimiter(firstLine, ",");
+  const semicolonCount = countDelimiter(firstLine, ";");
+  const delimiter = semicolonCount > commaCount ? ";" : ",";
+
   const rows = [];
   let row = [];
   let field = "";
@@ -101,7 +125,7 @@ export function parseCSV(csvText) {
       continue;
     }
 
-    if (char === "," && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       row.push(field);
       field = "";
       continue;
