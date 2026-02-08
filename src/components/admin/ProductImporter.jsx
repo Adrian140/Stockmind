@@ -473,30 +473,32 @@ export default function ProductImporter() {
     return date.getUTCDate() === test.getUTCDate();
   };
 
+  const formatMonthLabel = (value) => {
+    if (!value) return "";
+    const d = parseDateInput(value);
+    return d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  };
+
+  const goToPrevMonth = () => {
+    if (!historyStartDate || !historyEndDate) {
+      toast.error("Selectează mai întâi o perioadă");
+      return;
+    }
+    const start = parseDateInput(historyStartDate);
+    const prevStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1));
+    const prevEnd = new Date(Date.UTC(prevStart.getUTCFullYear(), prevStart.getUTCMonth() + 1, 0));
+    setHistoryStartDate(formatDateInput(prevStart));
+    setHistoryEndDate(formatDateInput(prevEnd));
+  };
+
   const goToNextMonth = () => {
     if (!historyStartDate || !historyEndDate) {
       toast.error("Selectează mai întâi o perioadă");
       return;
     }
     const start = parseDateInput(historyStartDate);
-    const end = parseDateInput(historyEndDate);
-    const isFullMonth = start.getUTCDate() === 1 && isLastDayOfMonth(end);
-
-    const nextMonthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
-    let nextStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate()));
-    let nextEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, end.getUTCDate()));
-
-    if (isFullMonth) {
-      nextStart = nextMonthStart;
-      nextEnd = new Date(Date.UTC(nextStart.getUTCFullYear(), nextStart.getUTCMonth() + 1, 0));
-    } else {
-      // Clamp end to last day of target month if needed
-      const lastDay = new Date(Date.UTC(nextEnd.getUTCFullYear(), nextEnd.getUTCMonth() + 1, 0)).getUTCDate();
-      if (nextEnd.getUTCDate() > lastDay) {
-        nextEnd = new Date(Date.UTC(nextEnd.getUTCFullYear(), nextEnd.getUTCMonth(), lastDay));
-      }
-    }
-
+    const nextStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+    const nextEnd = new Date(Date.UTC(nextStart.getUTCFullYear(), nextStart.getUTCMonth() + 1, 0));
     setHistoryStartDate(formatDateInput(nextStart));
     setHistoryEndDate(formatDateInput(nextEnd));
   };
@@ -574,7 +576,19 @@ export default function ProductImporter() {
           {uploadMode === "history" && (
             <div className="mb-3">
               <label className="block text-sm text-slate-400 mb-1">Summary Date Range (if file has no Date)</label>
+              {historyStartDate && (
+                <div className="mb-2 text-xs text-slate-500">
+                  Preview month: {formatMonthLabel(historyStartDate)}
+                </div>
+              )}
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goToPrevMonth}
+                  className="px-3 py-2 rounded-lg border border-dashboard-border text-sm text-slate-200 hover:border-amazon-orange hover:text-white transition-colors"
+                >
+                  Prev month
+                </button>
                 <input
                   type="date"
                   value={historyStartDate}
@@ -591,7 +605,7 @@ export default function ProductImporter() {
                 <button
                   type="button"
                   onClick={goToNextMonth}
-                  className="ml-2 px-3 py-2 rounded-lg border border-dashboard-border text-sm text-slate-200 hover:border-amazon-orange hover:text-white transition-colors"
+                  className="px-3 py-2 rounded-lg border border-dashboard-border text-sm text-slate-200 hover:border-amazon-orange hover:text-white transition-colors"
                 >
                   Next month
                 </button>
