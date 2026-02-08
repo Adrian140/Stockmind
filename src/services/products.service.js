@@ -51,6 +51,7 @@ class ProductsService {
         asin: p.asin,
         sku: p.sku,
         title: p.title,
+        imageUrl: p.image_url || p.image || null,
         brand: p.brand,
         category: p.category,
         targetUser: p.target_user,

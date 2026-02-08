@@ -8,7 +8,7 @@ import DataTable from '../components/ui/DataTable';
 import Badge from '../components/ui/Badge';
 import ChartCard from '../components/ui/ChartCard';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { fetchUnitsByDateRange } from '../services/sellerboardDaily.service';
+import { fetchMetricsByDateRange } from '../services/sellerboardDaily.service';
 
 const statusColors = {
   active: 'success',
@@ -26,7 +26,7 @@ export default function Products() {
   const [unitRangeKey, setUnitRangeKey] = useState('90d');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [rangeUnitsMap, setRangeUnitsMap] = useState({});
+  const [rangeMetricsMap, setRangeMetricsMap] = useState({});
   const [rangeLoading, setRangeLoading] = useState(false);
 
   const unitRanges = [
@@ -58,71 +58,102 @@ export default function Products() {
 
   const normalizeKey = (sku, asin) => (sku || asin || '').trim();
 
-  const resolveUnitsForRow = (row) => {
-    if (unitRangeKey === '30d') return Number(row.units30d) || 0;
-    if (unitRangeKey === '90d') return Number(row.units90d) || 0;
-    if (unitRangeKey === '365d') return Number(row.units365d) || 0;
-    if (unitRangeKey === 'all') return Number(row.unitsAllTime) || 0;
+  const resolveMetricsForRow = (row) => {
+    const fallbacks = {
+      units: 0,
+      revenue: 0,
+      profit: 0,
+      profitUnit: 0,
+      volatility: 0
+    };
 
     const keyBase = normalizeKey(row.sku, row.asin);
-    if (!keyBase) return 0;
+    if (!keyBase) return fallbacks;
 
     if (row.marketplace === 'ALL' && Array.isArray(row.sourceMarketplaces)) {
-      return row.sourceMarketplaces.reduce((sum, mp) => {
+      return row.sourceMarketplaces.reduce((acc, mp) => {
         const key = `${keyBase}|${mp}`;
-        return sum + (rangeUnitsMap[key] || 0);
-      }, 0);
+        const metrics = rangeMetricsMap[key];
+        if (!metrics) return acc;
+        acc.units += metrics.units || 0;
+        acc.revenue += metrics.revenue || 0;
+        acc.profit += metrics.profit || 0;
+        acc.profitUnit = acc.units > 0 ? acc.profit / acc.units : 0;
+        acc.volatility = Math.max(acc.volatility, metrics.volatility || 0);
+        return acc;
+      }, { ...fallbacks });
     }
 
     const key = `${keyBase}|${(row.marketplace || '').toUpperCase()}`;
-    return rangeUnitsMap[key] || 0;
+    return rangeMetricsMap[key] || fallbacks;
   };
 
   const displayProductsWithUnits = useMemo(() => {
     return displayProducts.map(p => ({
       ...p,
-      unitsSelected: resolveUnitsForRow(p)
+      ...(() => {
+        const metrics = resolveMetricsForRow(p);
+        return {
+          unitsSelected: metrics.units,
+          profitSelected: metrics.profit,
+          profitUnitSelected: metrics.profitUnit,
+          volatilitySelected: metrics.volatility
+        };
+      })()
     }));
-  }, [displayProducts, unitRangeKey, rangeUnitsMap]);
+  }, [displayProducts, unitRangeKey, rangeMetricsMap]);
 
   useEffect(() => {
-    const needsDailyFetch = unitRangeKey === '60d' || unitRangeKey === 'custom';
-    if (!needsDailyFetch || !user) return;
+    if (!user) return;
 
-    const load = async () => {
+    const load = async ({ startDate, endDate }) => {
       try {
         setRangeLoading(true);
-        let startDate;
-        let endDate;
-        if (unitRangeKey === '60d') {
-          endDate = new Date();
-          startDate = new Date();
-          startDate.setDate(endDate.getDate() - 60);
-        } else {
-          if (!customStart || !customEnd) {
-            setRangeUnitsMap({});
-            return;
-          }
-          startDate = new Date(customStart);
-          endDate = new Date(customEnd);
+        if (!startDate || !endDate) {
+          setRangeMetricsMap({});
+          return;
         }
 
-        const result = await fetchUnitsByDateRange({
+        const result = await fetchMetricsByDateRange({
           userId: user.id,
           startDate,
           endDate,
           marketplace: selectedMarketplace === 'all' ? null : selectedMarketplace
         });
-        setRangeUnitsMap(result || {});
+        setRangeMetricsMap(result || {});
       } catch (error) {
         console.error("❌ Failed to load range units:", error);
-        setRangeUnitsMap({});
+        setRangeMetricsMap({});
       } finally {
         setRangeLoading(false);
       }
     };
 
-    load();
+    if (unitRangeKey === 'custom') {
+      if (customStart && customEnd) {
+        load({ startDate: new Date(customStart), endDate: new Date(customEnd) });
+      } else {
+        setRangeMetricsMap({});
+      }
+      return;
+    }
+
+    const now = new Date();
+    let days = 30;
+    if (unitRangeKey === '60d') days = 60;
+    if (unitRangeKey === '90d') days = 90;
+    if (unitRangeKey === '365d') days = 365;
+    if (unitRangeKey === 'all') {
+      const start = new Date(now);
+      start.setFullYear(start.getFullYear() - 10);
+      const end = now;
+      load({ startDate: start, endDate: end });
+      return;
+    }
+    const endDate = now;
+    const startDate = new Date(now);
+    startDate.setDate(endDate.getDate() - days);
+    load({ startDate, endDate });
   }, [unitRangeKey, customStart, customEnd, selectedMarketplace, user]);
 
   const formatUnits = (val, { dashOnZero = false, muted = false } = {}) => {
@@ -133,6 +164,20 @@ export default function Products() {
   };
 
   const columns = [
+    {
+      key: 'imageUrl',
+      label: 'Image',
+      sortable: false,
+      render: (val, row) => (
+        <div className="w-12 h-12 rounded-lg bg-dashboard-bg border border-dashboard-border overflow-hidden flex items-center justify-center">
+          {val ? (
+            <img src={val} alt={row.title || "Product"} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-slate-700/40" />
+          )}
+        </div>
+      )
+    },
     {
       key: 'title',
       label: 'Product',
@@ -157,20 +202,15 @@ export default function Products() {
       )
     },
     {
-      key: 'status',
-      label: 'Status',
-      render: (val) => <Badge variant={statusColors[val]}>{val}</Badge>
-    },
-    {
       key: 'unitsSelected',
       label: `Units ${unitRangeLabel}`,
       render: (val) => formatUnits(val, { dashOnZero: true, muted: unitRangeKey !== '30d' })
     },
     {
-      key: 'profit30d',
-      label: 'Profit 90d',
+      key: 'profitSelected',
+      label: 'Profit',
       render: (_, row) => {
-        const profit = row.profit30d !== undefined && row.profit30d !== null ? row.profit30d * 3 : 0;
+        const profit = row.profitSelected !== undefined && row.profitSelected !== null ? row.profitSelected : 0;
         return (
           <span className={`font-mono ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             €{profit.toLocaleString()}
@@ -189,7 +229,7 @@ export default function Products() {
       render: (val) => <span className="font-mono">€{val !== undefined && val !== null ? val.toFixed(2) : '0.00'}</span>
     },
     {
-      key: 'profitUnit',
+      key: 'profitUnitSelected',
       label: 'Est. Profit/U',
       render: (val) => {
         const profit = val !== undefined && val !== null ? val : 0;
@@ -206,7 +246,7 @@ export default function Products() {
       render: (val) => <span className="font-mono">€{val !== undefined && val !== null ? val.toFixed(2) : '0.00'}</span>
     },
     {
-      key: 'volatility30d',
+      key: 'volatilitySelected',
       label: 'Volatility',
       render: (val) => {
         const volatility = val !== undefined && val !== null ? val : 0;

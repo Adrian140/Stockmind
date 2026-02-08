@@ -50,7 +50,7 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
   }
 }
 
-export async function fetchUnitsByDateRange({ userId, startDate, endDate, marketplace = null }) {
+export async function fetchMetricsByDateRange({ userId, startDate, endDate, marketplace = null }) {
   try {
     if (!userId || !startDate || !endDate) return {};
 
@@ -87,10 +87,39 @@ export async function fetchUnitsByDateRange({ userId, startDate, endDate, market
       const keyBase = (row.sku || row.asin || "").trim();
       if (!keyBase) continue;
       const key = `${keyBase}|${(row.marketplace || "").toUpperCase()}`;
-      map[key] = (map[key] || 0) + (row.units_total || 0);
+      if (!map[key]) {
+        map[key] = {
+          units: 0,
+          revenue: 0,
+          profit: 0,
+          days: 0,
+          sumUnitsSq: 0
+        };
+      }
+      const units = row.units_total || 0;
+      map[key].units += units;
+      map[key].revenue += row.revenue_total || 0;
+      map[key].profit += row.net_profit || 0;
+      map[key].days += 1;
+      map[key].sumUnitsSq += units * units;
     }
 
-    return map;
+    const finalized = {};
+    for (const [key, v] of Object.entries(map)) {
+      const mean = v.days > 0 ? v.units / v.days : 0;
+      const variance = v.days > 0 ? v.sumUnitsSq / v.days - mean * mean : 0;
+      const stddev = variance > 0 ? Math.sqrt(variance) : 0;
+      const volatility = mean > 0 ? stddev / mean : 0;
+      finalized[key] = {
+        units: v.units,
+        revenue: v.revenue,
+        profit: v.profit,
+        profitUnit: v.units > 0 ? v.profit / v.units : 0,
+        volatility
+      };
+    }
+
+    return finalized;
   } catch (error) {
     console.error("❌ Error fetching range units:", error);
     return {};
