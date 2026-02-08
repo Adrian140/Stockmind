@@ -7,15 +7,22 @@ import ResetPasswordForm from "../components/auth/ResetPasswordForm";
 import UpdatePasswordForm from "../components/auth/UpdatePasswordForm";
 
 export default function Auth() {
-  const [mode, setMode] = useState(() => {
+  const isRecoveryFlow = () => {
     const hash = window.location.hash || "";
-    return hash.includes("type=recovery") ? "update" : "login";
-  });
+    const search = window.location.search || "";
+    const params = new URLSearchParams(search);
+    return (
+      hash.includes("type=recovery") ||
+      params.get("type") === "recovery" ||
+      params.has("code")
+    );
+  };
+
+  const [mode, setMode] = useState(() => (isRecoveryFlow() ? "update" : "login"));
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    const hash = window.location.hash || "";
-    if (hash.includes("type=recovery")) {
+    if (isRecoveryFlow()) {
       setMode("update");
     }
   }, []);
