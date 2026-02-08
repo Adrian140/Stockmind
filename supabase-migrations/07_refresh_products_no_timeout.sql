@@ -29,7 +29,7 @@ BEGIN
   )
   SELECT
     d.user_id,
-    d.asin,
+    MIN(d.asin) AS asin,
     d.sku,
     MAX(title) AS title,
     'other' AS category,
@@ -65,7 +65,7 @@ BEGIN
     ON ai.user_id = d.user_id
     AND ai.asin = d.asin
   WHERE d.user_id = p_user
-  GROUP BY d.user_id, d.asin, d.sku, d.marketplace
+  GROUP BY d.user_id, d.sku, d.marketplace
   ON CONFLICT (user_id, sku, marketplace)
   DO UPDATE SET
     title = EXCLUDED.title,
