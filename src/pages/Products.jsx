@@ -394,11 +394,11 @@ function ProductDetailPanel({ product, userId, onClose }) {
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const historyRanges = [
-    { key: '30d', label: '30D', months: 1 },
-    { key: '60d', label: '60D', months: 2 },
-    { key: '90d', label: '90D', months: 3 },
-    { key: '365d', label: '365D', months: 12 },
-    { key: 'all', label: 'All Time', months: null }
+    { key: '30d', label: 'Last 30 days', months: 1 },
+    { key: '60d', label: 'Last 60 days', months: 2 },
+    { key: '90d', label: 'Last 90 days', months: 3 },
+    { key: '365d', label: 'Last 365 days', months: 12 },
+    { key: 'all', label: 'All time', months: null }
   ];
 
   useEffect(() => {
