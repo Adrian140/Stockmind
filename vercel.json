@@ -9,6 +9,10 @@
     {
       "path": "/api/sellerboard-daily-sync",
       "schedule": "59 21 * * *"
+    },
+    {
+      "path": "/api/keepa-image-sync",
+      "schedule": "* * * * *"
     }
   ]
 }
