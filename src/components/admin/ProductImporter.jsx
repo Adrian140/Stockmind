@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Upload, Database, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useSellerboard } from "../../context/SellerboardContext";
+import { useApp } from "../../context/AppContext";
 import { productsService } from "../../services/products.service";
 import { parseCSV, mapCSVToDailyRows } from "../../services/sellerboard.service";
 import { upsertSellerboardDailyRows } from "../../services/sellerboardDaily.service";
@@ -11,11 +12,39 @@ import toast from "react-hot-toast";
 export default function ProductImporter() {
   const { user } = useAuth();
   const { products: sellerboardProducts, refreshData } = useSellerboard();
+  const { marketplaces } = useApp();
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(0);
   const [historyFile, setHistoryFile] = useState(null);
   const [historyImporting, setHistoryImporting] = useState(false);
   const [historyImported, setHistoryImported] = useState(0);
+  const [historyMarketplace, setHistoryMarketplace] = useState("FR");
+
+  const parseNumberEU = (value) => {
+    if (value === null || value === undefined) return 0;
+    const cleaned = String(value)
+      .replace(/\u00A0/g, " ")
+      .replace(/\s/g, "")
+      .replace(",", ".");
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const parseDateRangeFromFilename = (name) => {
+    if (!name) return null;
+    const match = name.match(/(\d{2})_(\d{2})_(\d{4})-(\d{2})_(\d{2})_(\d{4})/);
+    if (!match) return null;
+    const [, d1, m1, y1, d2, m2, y2] = match;
+    const start = new Date(Date.UTC(Number(y1), Number(m1) - 1, Number(d1)));
+    const end = new Date(Date.UTC(Number(y2), Number(m2) - 1, Number(d2)));
+    return { start, end };
+  };
+
+  const inferMarketplaceFromFilename = (name) => {
+    if (!name) return null;
+    const match = name.match(/Buyer-([A-Z]{2})/);
+    return match ? match[1] : null;
+  };
 
   const importSellerboardToSupabase = async () => {
     if (!user) {
@@ -115,18 +144,69 @@ export default function ProductImporter() {
         toast.error("CSV has no data rows");
         return;
       }
-      const dailyRows = mapCSVToDailyRows(csvData);
-      const result = await upsertSellerboardDailyRows(user.id, dailyRows, 500);
-      if (!result.success) {
-        throw new Error(result.error || "Import failed");
-      }
-      setHistoryImported(result.count || dailyRows.length);
+      const headers = Object.keys(csvData[0] || {});
+      const isDaily = headers.includes("Date") && headers.includes("ASIN");
 
-      const refresh = await productsService.refreshProductsFromDaily(user.id);
-      if (!refresh.success) {
-        toast.error("History imported, but failed to refresh products");
+      if (isDaily) {
+        const dailyRows = mapCSVToDailyRows(csvData);
+        const result = await upsertSellerboardDailyRows(user.id, dailyRows, 500);
+        if (!result.success) {
+          throw new Error(result.error || "Import failed");
+        }
+        setHistoryImported(result.count || dailyRows.length);
+        const refresh = await productsService.refreshProductsFromDaily(user.id);
+        if (!refresh.success) {
+          toast.error("History imported, but failed to refresh products");
+        } else {
+          toast.success(`Imported ${result.count} daily rows and refreshed products`);
+        }
       } else {
-        toast.success(`Imported ${result.count} daily rows and refreshed products`);
+        // Fallback: summary file (no Date) -> approximate rolling metrics
+        const range = parseDateRangeFromFilename(historyFile.name);
+        const inferred = inferMarketplaceFromFilename(historyFile.name);
+        const selectedMarketplace = inferred || historyMarketplace;
+        const days = range ? Math.max(1, Math.round((range.end - range.start) / 86400000) + 1) : 365;
+
+        let successCount = 0;
+        for (const row of csvData) {
+          const asin = row["ASIN"] || row["asin"] || "";
+          if (!asin) continue;
+          const units = parseNumberEU(row["Units"]);
+          const revenue = parseNumberEU(row["Sales"]);
+          const profit = parseNumberEU(row["Net profit"] || row["Net Profit"]);
+          const roi = parseNumberEU(row["ROI"]);
+          const avgUnits = units / days;
+          const avgRevenue = revenue / days;
+          const avgProfit = profit / days;
+
+          const productData = {
+            asin,
+            title: row["Product"] || row["Name"] || "Unknown Product",
+            category: "other",
+            marketplace: selectedMarketplace,
+            status: "active",
+            tags: [],
+            units30d: Math.round(avgUnits * 30),
+            units90d: Math.round(avgUnits * 90),
+            units365d: Math.round(avgUnits * 365),
+            revenue30d: Number((avgRevenue * 30).toFixed(2)),
+            profit30d: Number((avgProfit * 30).toFixed(2)),
+            profitUnit: avgUnits > 0 ? Number((avgProfit / avgUnits).toFixed(2)) : 0,
+            roi: Number(roi.toFixed(2)) || 0
+          };
+
+          const result = await productsService.saveProduct(user.id, productData);
+          if (result.success) {
+            successCount++;
+          }
+        }
+        setHistoryImported(successCount);
+        if (successCount > 0) {
+          toast.success(`Imported ${successCount} products from summary CSV`);
+          window.location.reload();
+        } else {
+          toast.error("No products imported from summary CSV");
+        }
       }
     } catch (error) {
       console.error("❌ History import failed:", error);
@@ -159,6 +239,20 @@ export default function ProductImporter() {
           <p className="text-lg font-extralight text-slate-300 mb-2">
             Import Sellerboard full history (CSV)
           </p>
+          <div className="mb-3">
+            <label className="block text-sm text-slate-400 mb-1">Marketplace</label>
+            <select
+              value={historyMarketplace}
+              onChange={(e) => setHistoryMarketplace(e.target.value)}
+              className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+            >
+              {marketplaces.map((mp) => (
+                <option key={mp.id} value={mp.id}>
+                  {mp.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <input
             type="file"
             accept=".csv"

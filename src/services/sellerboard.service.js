@@ -154,7 +154,13 @@ export function parseCSV(csvText) {
     return [];
   }
 
-  const headers = rows[0].map(h => h.trim());
+  const headers = rows[0].map((h, idx) => {
+    const trimmed = h.trim();
+    if (idx === 0 && trimmed.charCodeAt(0) === 0xfeff) {
+      return trimmed.slice(1);
+    }
+    return trimmed;
+  });
   console.log("📋 CSV HEADERS:", headers);
   console.log("📊 TOTAL COLUMNS:", headers.length);
   console.log("📊 TOTAL DATA ROWS:", rows.length - 1);
