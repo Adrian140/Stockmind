@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Database, Key, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { Key, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
-import SellerboardStatus from "../components/widgets/SellerboardStatus";
 import ProductImporter from "../components/admin/ProductImporter";
 import { parseCSV } from "../services/sellerboard.service";
 
 export default function Integrations() {
   const { user } = useAuth();
   const [keepaKey, setKeepaKey] = useState("");
-  const [sellerboardKey, setSellerboardKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [imagesFile, setImagesFile] = useState(null);
@@ -33,7 +31,6 @@ export default function Integrations() {
 
       if (!error && data) {
         setKeepaKey(data.keepa_api_key || "");
-        setSellerboardKey(data.sellerboard_api_key || "");
       }
     } catch (error) {
       console.error("Error loading integrations:", error);
@@ -52,9 +49,7 @@ export default function Integrations() {
         .upsert({
           user_id: user.id,
           keepa_api_key: keepaKey,
-          sellerboard_api_key: sellerboardKey,
           keepa_connected_at: keepaKey ? new Date().toISOString() : null,
-          sellerboard_connected_at: sellerboardKey ? new Date().toISOString() : null,
           updated_at: new Date().toISOString()
         }, {
           onConflict: "user_id"
@@ -236,54 +231,7 @@ export default function Integrations() {
             </p>
           </div>
         </div>
-
-        <div className="bg-dashboard-card border border-dashboard-border rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 rounded-lg bg-blue-500/10">
-              <Database className="w-6 h-6 text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-medium text-white">Sellerboard API</h2>
-              <p className="text-lg font-extralight text-slate-400">Sales & profit tracking</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-lg font-extralight text-slate-300 mb-2">
-                API Key
-              </label>
-              <input
-                type="password"
-                value={sellerboardKey}
-                onChange={(e) => setSellerboardKey(e.target.value)}
-                placeholder="Enter your Sellerboard API key"
-                className="w-full bg-dashboard-bg border border-dashboard-border rounded-lg px-4 py-3 text-lg font-extralight text-white placeholder:text-slate-500 focus:outline-none focus:border-amazon-orange"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 text-lg font-extralight text-slate-400">
-              {sellerboardKey ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
-                  <span className="text-green-400">Connected</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Not configured</span>
-                </>
-              )}
-            </div>
-
-            <p className="text-lg font-extralight text-slate-500">
-              CSV automation URLs are configured in your environment variables
-            </p>
-          </div>
-        </div>
       </div>
-
-      <SellerboardStatus />
 
       <ProductImporter />
 
