@@ -60,6 +60,7 @@ class ProductsService {
         units30d: p.units_30d || 0,
         units90d: p.units_90d || 0,
         units365d: p.units_365d || 0,
+        unitsAllTime: p.units_all_time || 0,
         revenue30d: parseFloat(p.revenue_30d) || 0,
         profit30d: parseFloat(p.profit_30d) || 0,
         profitUnit: parseFloat(p.profit_unit) || 0,

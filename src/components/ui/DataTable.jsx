@@ -100,10 +100,16 @@ export default function DataTable({
                 )}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-4 text-lg font-light text-slate-300 whitespace-nowrap">
-                    {col.render ? col.render(row[col.key], row) : row[col.key]}
-                  </td>
-                ))}
+                <td
+                  key={col.key}
+                  className={clsx(
+                    'px-4 py-4 text-lg font-light text-slate-300 whitespace-nowrap',
+                    col.key === sortKey && 'bg-dashboard-bg/40'
+                  )}
+                >
+                  {col.render ? col.render(row[col.key], row) : row[col.key]}
+                </td>
+              ))}
               </motion.tr>
             ))}
           </tbody>

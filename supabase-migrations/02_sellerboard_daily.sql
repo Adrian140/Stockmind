@@ -67,6 +67,7 @@ AS $$
     units_30d,
     units_90d,
     units_365d,
+    units_all_time,
     revenue_30d,
     profit_30d,
     profit_unit,
@@ -84,6 +85,7 @@ AS $$
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN units_total ELSE 0 END) AS units_30d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '90 days' THEN units_total ELSE 0 END) AS units_90d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '365 days' THEN units_total ELSE 0 END) AS units_365d,
+    SUM(units_total) AS units_all_time,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN revenue_total ELSE 0 END) AS revenue_30d,
     SUM(CASE WHEN report_date >= CURRENT_DATE - INTERVAL '30 days' THEN net_profit ELSE 0 END) AS profit_30d,
     CASE
@@ -103,6 +105,7 @@ AS $$
     units_30d = EXCLUDED.units_30d,
     units_90d = EXCLUDED.units_90d,
     units_365d = EXCLUDED.units_365d,
+    units_all_time = EXCLUDED.units_all_time,
     revenue_30d = EXCLUDED.revenue_30d,
     profit_30d = EXCLUDED.profit_30d,
     profit_unit = EXCLUDED.profit_unit,

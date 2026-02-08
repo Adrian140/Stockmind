@@ -73,12 +73,17 @@ export default function Products() {
     {
       key: 'units90d',
       label: 'Units 90d',
-      render: (val) => <span className="font-mono">{val !== undefined && val !== null ? val.toLocaleString() : '-'}</span>
+      render: (val) => <span className="font-mono">{val ? val.toLocaleString() : '-'}</span>
     },
     {
       key: 'units365d',
       label: 'Units 365d',
-      render: (val) => <span className="font-mono text-slate-400">{val !== undefined && val !== null ? val.toLocaleString() : '-'}</span>
+      render: (val) => <span className="font-mono text-slate-400">{val ? val.toLocaleString() : '-'}</span>
+    },
+    {
+      key: 'unitsAllTime',
+      label: 'Units All Time',
+      render: (val) => <span className="font-mono">{val ? val.toLocaleString() : '-'}</span>
     },
     {
       key: 'profit30d',
