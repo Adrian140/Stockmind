@@ -73,7 +73,7 @@ function mapCategory(sellerboardCategory) {
 }
 
 /**
- * Parse CSV string into array of objects
+ * Parse CSV string into array of objects (handles quoted commas)
  */
 function parseCSV(csvText) {
   if (!csvText || csvText.trim() === "") {
@@ -81,45 +81,72 @@ function parseCSV(csvText) {
     return [];
   }
 
-  console.log("📄 CSV RAW (first 500 chars):", csvText.substring(0, 500));
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
 
-  const lines = csvText.trim().split("\n");
-  if (lines.length < 2) {
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const next = csvText[i + 1];
+
+    if (char === '"' && next === '"') {
+      field += '"';
+      i += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(field);
+      field = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (field.length > 0 || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+      row = [];
+      field = "";
+      continue;
+    }
+
+    field += char;
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  if (rows.length < 2) {
     console.warn("⚠️ CSV has no data rows");
     return [];
   }
 
-  // Parse headers
-  const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
+  const headers = rows[0].map(h => h.trim());
   console.log("📋 CSV HEADERS:", headers);
   console.log("📊 TOTAL COLUMNS:", headers.length);
-  console.log("📊 TOTAL DATA ROWS:", lines.length - 1);
+  console.log("📊 TOTAL DATA ROWS:", rows.length - 1);
 
-  // Show first 2 data rows as example
-  if (lines.length > 1) {
-    console.log("📌 EXAMPLE ROW 1:", lines[1]);
-  }
-  if (lines.length > 2) {
-    console.log("📌 EXAMPLE ROW 2:", lines[2]);
-  }
-
-  // Parse data rows
   const data = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    // Simple CSV parsing (handles basic comma-separated values)
-    const values = line.split(",").map(v => v.trim().replace(/"/g, ""));
-    const row = {};
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i];
+    if (!values || values.length === 0) continue;
+    const rowObj = {};
     headers.forEach((header, index) => {
-      row[header] = values[index] || "";
+      rowObj[header] = (values[index] ?? "").trim();
     });
-    data.push(row);
+    data.push(rowObj);
   }
 
   console.log("✅ PARSED ROWS:", data.length);
-
   return data;
 }
 
@@ -144,33 +171,58 @@ function mapCSVToProducts(csvData) {
     console.log("🔍 AVAILABLE COLUMNS IN CSV:", Object.keys(csvData[0]));
   }
 
-  const products = csvData.map(row => {
-    // Try multiple column name variations
-    const asin = row["ASIN"] || row["asin"] || row["SKU"] || row["sku"] || row["Asin"] || "";
-    const title = row["Title"] || row["title"] || row["Product Name"] || row["Name"] || row["name"] || "";
-    const marketplace = row["Marketplace"] || row["marketplace"] || row["Market"] || row["market"] || "";
-    const category = row["Category"] || row["category"] || row["Product Group"] || row["product_group"] || "";
-    // Sales data
-    const units30d = parseInt(row["Units (Last 30 days)"] || row["Units30"] || row["Sales30"] || row["units_30d"] || "0");
-    const revenue30d = parseFloat(row["Revenue (Last 30 days)"] || row["Revenue30"] || row["revenue_30d"] || "0");
-    const price = parseFloat(row["Price"] || row["price"] || row["Current Price"] || row["current_price"] || "0");
+  // Aggregate daily rows into 30d per ASIN
+  const byAsin = new Map();
+  for (const row of csvData) {
+    const asin = row["ASIN"] || row["asin"] || "";
+    if (!asin) continue;
 
-    return {
-      ASIN: asin,
-      Title: title,
-      Marketplace: mapMarketplace(marketplace),
-      Category: mapCategory(category),
-      Units30d: units30d,
-      Revenue30d: revenue30d,
-      Price: price,
-      Profit30d: 0, // Calculate if cost data available
-      ROI: 0,
-      EstimatedSales: units30d
-    };
-  });
+    const title = row["Name"] || row["Title"] || row["Product Name"] || "";
+    const marketplace = row["Marketplace"] || row["marketplace"] || "";
+    const category = row["Category"] || row["Product Group"] || "";
 
-  // Filter out rows with no ASIN
-  const validProducts = products.filter(p => p.ASIN && p.ASIN !== "");
+    const units =
+      parseFloat(row["UnitsOrganic"] || 0) +
+      parseFloat(row["UnitsPPC"] || 0) +
+      parseFloat(row["UnitsSponsoredProducts"] || 0) +
+      parseFloat(row["UnitsSponsoredDisplay"] || 0);
+
+    const revenue =
+      parseFloat(row["SalesOrganic"] || 0) +
+      parseFloat(row["SalesPPC"] || 0) +
+      parseFloat(row["SalesSponsoredProducts"] || 0) +
+      parseFloat(row["SalesSponsoredDisplay"] || 0);
+
+    const netProfit = parseFloat(row["NetProfit"] || 0);
+    const roi = parseFloat(row["ROI"] || 0);
+
+    if (!byAsin.has(asin)) {
+      byAsin.set(asin, {
+        ASIN: asin,
+        Title: title,
+        Marketplace: mapMarketplace(marketplace),
+        Category: mapCategory(category),
+        Units30d: 0,
+        Revenue30d: 0,
+        Profit30d: 0,
+        ROI: 0,
+        rows: 0
+      });
+    }
+
+    const agg = byAsin.get(asin);
+    agg.Units30d += units;
+    agg.Revenue30d += revenue;
+    agg.Profit30d += netProfit;
+    agg.ROI += roi;
+    agg.rows += 1;
+  }
+
+  const validProducts = Array.from(byAsin.values()).map(p => ({
+    ...p,
+    ProfitUnit: p.Units30d > 0 ? p.Profit30d / p.Units30d : 0,
+    ROI: p.rows > 0 ? p.ROI / p.rows : 0
+  }));
 
   console.log("🔧 SELLERBOARD PRODUCTS PROCESSED:");
   console.table(validProducts.slice(0, 5).map(p => ({
