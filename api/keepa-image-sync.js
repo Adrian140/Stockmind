@@ -81,7 +81,7 @@ export default async function handler(req, res) {
       throw integrationError;
     }
 
-    const keepaKey = integration?.keepa_api_key || process.env.VITE_KEEPA_API_KEY;
+    const keepaKey = integration?.keepa_api_key || process.env.KEEPA_API_KEY;
     if (!keepaKey) {
       res.status(500).json({ error: "Missing KEEPA_API_KEY (integration or env)" });
       return;

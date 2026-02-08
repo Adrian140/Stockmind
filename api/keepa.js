@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     }
 
     // Get Keepa API key from environment
-    const keepaApiKey = process.env.VITE_KEEPA_API_KEY;
+    const keepaApiKey = process.env.KEEPA_API_KEY;
     if (!keepaApiKey) {
       res.status(500).json({ error: "Keepa API key not configured" });
       return;
