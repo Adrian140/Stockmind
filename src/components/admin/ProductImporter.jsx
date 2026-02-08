@@ -431,8 +431,14 @@ export default function ProductImporter() {
           <div className="mt-3 flex items-center justify-between">
             <span className="text-lg font-extralight text-slate-400">
               {uploadMode === "images"
-                ? currentImagesFile?.name || (imagesQueue.length ? `${imagesQueue.length} pending` : "No file selected")
-                : currentHistoryFile?.name || (historyQueue.length ? `${historyQueue.length} pending` : "No file selected")}
+                ? currentImagesFile?.name ||
+                  (imagesQueue.length
+                    ? `Next: ${imagesQueue[0]?.name} (+${Math.max(imagesQueue.length - 1, 0)} pending)`
+                    : "No file selected")
+                : currentHistoryFile?.name ||
+                  (historyQueue.length
+                    ? `Next: ${historyQueue[0]?.name} (+${Math.max(historyQueue.length - 1, 0)} pending)`
+                    : "No file selected")}
             </span>
             <button
               onClick={() => {
