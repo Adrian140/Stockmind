@@ -8,7 +8,7 @@ import DataTable from '../components/ui/DataTable';
 import Badge from '../components/ui/Badge';
 import ChartCard from '../components/ui/ChartCard';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { fetchMetricsByDateRange } from '../services/sellerboardDaily.service';
+import { fetchMetricsByDateRange, fetchSalesHistorySeries } from '../services/sellerboardDaily.service';
 
 const statusColors = {
   active: 'success',
@@ -379,7 +379,8 @@ export default function Products() {
       <AnimatePresence>
         {selectedProduct && (
           <ProductDetailPanel 
-            product={selectedProduct} 
+            product={selectedProduct}
+            userId={user?.id}
             onClose={() => setSelectedProduct(null)} 
           />
         )}
@@ -388,8 +389,10 @@ export default function Products() {
   );
 }
 
-function ProductDetailPanel({ product, onClose }) {
+function ProductDetailPanel({ product, userId, onClose }) {
   const [historyRange, setHistoryRange] = useState('90d');
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const historyRanges = [
     { key: '30d', label: '30D', months: 1 },
     { key: '60d', label: '60D', months: 2 },
@@ -398,12 +401,52 @@ function ProductDetailPanel({ product, onClose }) {
     { key: 'all', label: 'All Time', months: null }
   ];
 
-  const historyData = useMemo(() => {
-    const all = product.salesHistory || [];
-    if (historyRange === 'all') return all;
-    const months = historyRanges.find(r => r.key === historyRange)?.months || 3;
-    return all.slice(-months);
-  }, [product.salesHistory, historyRange]);
+  useEffect(() => {
+    if (!product || !userId) return;
+    const load = async () => {
+      try {
+        setHistoryLoading(true);
+        const now = new Date();
+        let start = new Date(now);
+        if (historyRange === 'all') {
+          start = new Date(now);
+          start.setFullYear(start.getFullYear() - 10);
+        } else {
+          const months = historyRanges.find(r => r.key === historyRange)?.months || 3;
+          start = new Date(now);
+          start.setMonth(start.getMonth() - months);
+        }
+
+        const daysSpan = Math.max(1, Math.floor((now - start) / (1000 * 60 * 60 * 24)));
+        const granularity = daysSpan <= 120 ? "day" : "month";
+
+        const series = await fetchSalesHistorySeries({
+          userId,
+          asin: product.asin,
+          sku: product.sku,
+          marketplace: product.marketplace,
+          startDate: start,
+          endDate: now,
+          granularity
+        });
+
+        const formatted = series.map((item) => ({
+          month: granularity === "day"
+            ? item.label
+            : new Date(`${item.label}-01T00:00:00Z`).toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+          units: item.units
+        }));
+
+        setHistoryData(formatted);
+      } catch (error) {
+        console.error("❌ Failed to load sales history:", error);
+        setHistoryData([]);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+    load();
+  }, [product, historyRange]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -482,7 +525,7 @@ function ProductDetailPanel({ product, onClose }) {
             </p>
           </div>
 
-          <ChartCard title="Sales History" subtitle="Monthly units sold">
+          <ChartCard title="Sales History" subtitle="Units over time">
             <div className="flex items-center justify-end mb-3">
               <select
                 value={historyRange}
@@ -494,6 +537,9 @@ function ProductDetailPanel({ product, onClose }) {
                 ))}
               </select>
             </div>
+            {historyLoading && (
+              <div className="text-sm text-slate-400 mb-2">Loading history…</div>
+            )}
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={historyData}>
                 <defs>

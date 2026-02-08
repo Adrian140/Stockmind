@@ -168,3 +168,72 @@ export async function fetchMetricsByDateRange({ userId, startDate, endDate, mark
     return {};
   }
 }
+
+export async function fetchSalesHistorySeries({
+  userId,
+  asin,
+  sku,
+  marketplace = null,
+  startDate,
+  endDate,
+  granularity = "month"
+}) {
+  try {
+    if (!userId || !startDate || !endDate || (!asin && !sku)) return [];
+
+    const startIso = new Date(startDate).toISOString().slice(0, 10);
+    const endIso = new Date(endDate).toISOString().slice(0, 10);
+
+    const pageSize = 1000;
+    let from = 0;
+    let allRows = [];
+
+    while (true) {
+      let query = supabase
+        .from("sellerboard_daily")
+        .select("report_date,units_total")
+        .eq("user_id", userId)
+        .gte("report_date", startIso)
+        .lte("report_date", endIso);
+
+      if (marketplace && marketplace !== "ALL") {
+        query = query.eq("marketplace", marketplace);
+      }
+
+      if (sku) {
+        query = query.eq("sku", sku);
+      } else {
+        query = query.eq("asin", asin);
+      }
+
+      const { data, error } = await query.range(from, from + pageSize - 1);
+      if (error) throw error;
+
+      allRows = allRows.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const bucketed = new Map();
+    for (const row of allRows) {
+      const date = row.report_date;
+      if (!date) continue;
+      const key = granularity === "day" ? date : date.slice(0, 7);
+      const current = bucketed.get(key) || 0;
+      bucketed.set(key, current + (row.units_total || 0));
+    }
+
+    const result = Array.from(bucketed.entries())
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, units]) => ({
+        month: granularity === "day" ? key : `${key}-01`,
+        label: granularity === "day" ? key : key,
+        units
+      }));
+
+    return result;
+  } catch (error) {
+    console.error("❌ Error fetching sales history series:", error);
+    return [];
+  }
+}
