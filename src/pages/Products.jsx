@@ -58,11 +58,6 @@ export default function Products() {
 
   const normalizeKey = (sku, asin) => (sku || asin || '').trim();
 
-  const hasRangeMetrics = useMemo(
-    () => Object.keys(rangeMetricsMap || {}).length > 0,
-    [rangeMetricsMap]
-  );
-
   const resolveMetricsForRow = (row) => {
     const fallbacks = {
       units: 0,
@@ -71,42 +66,6 @@ export default function Products() {
       profitUnit: 0,
       volatility: 0
     };
-
-    if (!hasRangeMetrics && unitRangeKey !== '60d' && unitRangeKey !== 'custom') {
-      if (unitRangeKey === '30d') {
-        return {
-          ...fallbacks,
-          units: Number(row.units30d) || 0,
-          profit: Number(row.profit30d) || 0,
-          profitUnit: Number(row.profitUnit) || 0,
-          volatility: Number(row.volatility30d) || 0
-        };
-      }
-      if (unitRangeKey === '90d') {
-        return {
-          ...fallbacks,
-          units: Number(row.units90d) || 0,
-          profit: Number(row.profit30d || 0) * 3,
-          profitUnit: Number(row.profitUnit) || 0,
-          volatility: Number(row.volatility30d) || 0
-        };
-      }
-      if (unitRangeKey === '365d') {
-        return {
-          ...fallbacks,
-          units: Number(row.units365d) || 0,
-          profit: Number(row.profit30d || 0) * 12,
-          profitUnit: Number(row.profitUnit) || 0,
-          volatility: Number(row.volatility30d) || 0
-        };
-      }
-      if (unitRangeKey === 'all') {
-        return {
-          ...fallbacks,
-          units: Number(row.unitsAllTime) || 0
-        };
-      }
-    }
 
     const keyBase = normalizeKey(row.sku, row.asin);
     if (!keyBase) return fallbacks;
@@ -130,7 +89,7 @@ export default function Products() {
   };
 
   const displayProductsWithUnits = useMemo(() => {
-    return displayProducts.map(p => ({
+    const withMetrics = displayProducts.map(p => ({
       ...p,
       ...(() => {
         const metrics = resolveMetricsForRow(p);
@@ -142,7 +101,13 @@ export default function Products() {
         };
       })()
     }));
-  }, [displayProducts, unitRangeKey, rangeMetricsMap, hasRangeMetrics]);
+
+    if (unitRangeKey === 'all') {
+      return withMetrics;
+    }
+
+    return withMetrics.filter(p => (p.unitsSelected || 0) > 0);
+  }, [displayProducts, unitRangeKey, rangeMetricsMap]);
 
   useEffect(() => {
     if (!user) return;
