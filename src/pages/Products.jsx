@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Filter, Tag, X, Edit2, ExternalLink, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import DataTable from '../components/ui/DataTable';
 import Badge from '../components/ui/Badge';
 import ChartCard from '../components/ui/ChartCard';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { fetchUnitsByDateRange } from '../services/sellerboardDaily.service';
 
 const statusColors = {
   active: 'success',
@@ -16,10 +18,27 @@ const statusColors = {
 };
 
 export default function Products() {
-  const { filteredProducts, categories } = useApp();
+  const { user } = useAuth();
+  const { filteredProducts, categories, selectedMarketplace } = useApp();
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [unitRangeKey, setUnitRangeKey] = useState('90d');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [rangeUnitsMap, setRangeUnitsMap] = useState({});
+  const [rangeLoading, setRangeLoading] = useState(false);
+
+  const unitRanges = [
+    { key: '30d', label: '30D', days: 30 },
+    { key: '60d', label: '60D', days: 60 },
+    { key: '90d', label: '90D', days: 90 },
+    { key: '365d', label: '365D', days: 365 },
+    { key: 'all', label: 'All Time', days: null },
+    { key: 'custom', label: 'Custom', days: null }
+  ];
+
+  const unitRangeLabel = unitRanges.find(r => r.key === unitRangeKey)?.label || '30D';
 
   const allTags = [...new Set(filteredProducts.flatMap(p => p.tags || []))];
 
@@ -36,6 +55,75 @@ export default function Products() {
     const tagMatch = !tagFilter || (p.tags && p.tags.includes(tagFilter));
     return searchMatch && tagMatch;
   });
+
+  const normalizeKey = (sku, asin) => (sku || asin || '').trim();
+
+  const resolveUnitsForRow = (row) => {
+    if (unitRangeKey === '30d') return row.units30d || 0;
+    if (unitRangeKey === '90d') return row.units90d || 0;
+    if (unitRangeKey === '365d') return row.units365d || 0;
+    if (unitRangeKey === 'all') return row.unitsAllTime || 0;
+
+    const keyBase = normalizeKey(row.sku, row.asin);
+    if (!keyBase) return 0;
+
+    if (row.marketplace === 'ALL' && Array.isArray(row.sourceMarketplaces)) {
+      return row.sourceMarketplaces.reduce((sum, mp) => {
+        const key = `${keyBase}|${mp}`;
+        return sum + (rangeUnitsMap[key] || 0);
+      }, 0);
+    }
+
+    const key = `${keyBase}|${(row.marketplace || '').toUpperCase()}`;
+    return rangeUnitsMap[key] || 0;
+  };
+
+  const displayProductsWithUnits = useMemo(() => {
+    return displayProducts.map(p => ({
+      ...p,
+      unitsSelected: resolveUnitsForRow(p)
+    }));
+  }, [displayProducts, unitRangeKey, rangeUnitsMap]);
+
+  useEffect(() => {
+    const needsDailyFetch = unitRangeKey === '60d' || unitRangeKey === 'custom';
+    if (!needsDailyFetch || !user) return;
+
+    const load = async () => {
+      try {
+        setRangeLoading(true);
+        let startDate;
+        let endDate;
+        if (unitRangeKey === '60d') {
+          endDate = new Date();
+          startDate = new Date();
+          startDate.setDate(endDate.getDate() - 60);
+        } else {
+          if (!customStart || !customEnd) {
+            setRangeUnitsMap({});
+            return;
+          }
+          startDate = new Date(customStart);
+          endDate = new Date(customEnd);
+        }
+
+        const result = await fetchUnitsByDateRange({
+          userId: user.id,
+          startDate,
+          endDate,
+          marketplace: selectedMarketplace === 'all' ? null : selectedMarketplace
+        });
+        setRangeUnitsMap(result || {});
+      } catch (error) {
+        console.error("❌ Failed to load range units:", error);
+        setRangeUnitsMap({});
+      } finally {
+        setRangeLoading(false);
+      }
+    };
+
+    load();
+  }, [unitRangeKey, customStart, customEnd, selectedMarketplace, user]);
 
   const formatUnits = (val, { dashOnZero = false, muted = false } = {}) => {
     const hasValue = val !== undefined && val !== null && (!dashOnZero || val > 0);
@@ -74,24 +162,9 @@ export default function Products() {
       render: (val) => <Badge variant={statusColors[val]}>{val}</Badge>
     },
     {
-      key: 'units30d',
-      label: 'Units 30d',
-      render: (val) => formatUnits(val)
-    },
-    {
-      key: 'units90d',
-      label: 'Units 90d',
-      render: (val) => formatUnits(val, { dashOnZero: true, muted: true })
-    },
-    {
-      key: 'units365d',
-      label: 'Units 365d',
-      render: (val) => formatUnits(val, { dashOnZero: true, muted: true })
-    },
-    {
-      key: 'unitsAllTime',
-      label: 'Units All Time',
-      render: (val) => formatUnits(val, { dashOnZero: true })
+      key: 'unitsSelected',
+      label: `Units ${unitRangeLabel}`,
+      render: (val) => formatUnits(val, { dashOnZero: true, muted: unitRangeKey !== '30d' })
     },
     {
       key: 'profit30d',
@@ -208,13 +281,50 @@ export default function Products() {
             ))}
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-400">Units Range</label>
+          <select
+            value={unitRangeKey}
+            onChange={(e) => setUnitRangeKey(e.target.value)}
+            className="bg-dashboard-card border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+          >
+            {unitRanges.map((range) => (
+              <option key={range.key} value={range.key}>
+                {range.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {unitRangeKey === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="bg-dashboard-card border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+            />
+            <span className="text-slate-500 text-sm">to</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="bg-dashboard-card border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+            />
+          </div>
+        )}
+
+        {(unitRangeKey === '60d' || unitRangeKey === 'custom') && rangeLoading && (
+          <div className="text-sm text-slate-400">Loading range data…</div>
+        )}
       </div>
 
       <DataTable 
         columns={columns} 
-        data={displayProducts}
+        data={displayProductsWithUnits}
         pageSize={50}
-        defaultSortKey="units30d"
+        defaultSortKey="unitsSelected"
         onRowClick={setSelectedProduct}
         emptyMessage="No products found matching your criteria."
       />
@@ -232,6 +342,22 @@ export default function Products() {
 }
 
 function ProductDetailPanel({ product, onClose }) {
+  const [historyRange, setHistoryRange] = useState('90d');
+  const historyRanges = [
+    { key: '30d', label: '30D', months: 1 },
+    { key: '60d', label: '60D', months: 2 },
+    { key: '90d', label: '90D', months: 3 },
+    { key: '365d', label: '365D', months: 12 },
+    { key: 'all', label: 'All Time', months: null }
+  ];
+
+  const historyData = useMemo(() => {
+    const all = product.salesHistory || [];
+    if (historyRange === 'all') return all;
+    const months = historyRanges.find(r => r.key === historyRange)?.months || 3;
+    return all.slice(-months);
+  }, [product.salesHistory, historyRange]);
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -310,8 +436,19 @@ function ProductDetailPanel({ product, onClose }) {
           </div>
 
           <ChartCard title="Sales History" subtitle="Monthly units sold">
+            <div className="flex items-center justify-end mb-3">
+              <select
+                value={historyRange}
+                onChange={(e) => setHistoryRange(e.target.value)}
+                className="bg-dashboard-bg border border-dashboard-border rounded-lg px-3 py-2 text-sm text-slate-200"
+              >
+                {historyRanges.map(r => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </select>
+            </div>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={product.salesHistory || []}>
+              <AreaChart data={historyData}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>

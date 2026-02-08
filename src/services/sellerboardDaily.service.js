@@ -49,3 +49,50 @@ export async function upsertSellerboardDailyRows(userId, rows, batchSize = 500) 
     return { success: false, error: error.message };
   }
 }
+
+export async function fetchUnitsByDateRange({ userId, startDate, endDate, marketplace = null }) {
+  try {
+    if (!userId || !startDate || !endDate) return {};
+
+    const startIso = new Date(startDate).toISOString().slice(0, 10);
+    const endIso = new Date(endDate).toISOString().slice(0, 10);
+
+    const pageSize = 1000;
+    let from = 0;
+    let allRows = [];
+
+    while (true) {
+      let query = supabase
+        .from("sellerboard_daily")
+        .select("sku,asin,marketplace,units_total")
+        .eq("user_id", userId)
+        .gte("report_date", startIso)
+        .lte("report_date", endIso)
+        .range(from, from + pageSize - 1);
+
+      if (marketplace) {
+        query = query.eq("marketplace", marketplace);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      allRows = allRows.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const map = {};
+    for (const row of allRows) {
+      const keyBase = (row.sku || row.asin || "").trim();
+      if (!keyBase) continue;
+      const key = `${keyBase}|${(row.marketplace || "").toUpperCase()}`;
+      map[key] = (map[key] || 0) + (row.units_total || 0);
+    }
+
+    return map;
+  } catch (error) {
+    console.error("❌ Error fetching range units:", error);
+    return {};
+  }
+}

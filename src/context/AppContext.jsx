@@ -118,6 +118,7 @@ export function AppProvider({ children }) {
         agg.units30d += p.units30d || 0;
         agg.units90d += p.units90d || 0;
         agg.units365d += p.units365d || 0;
+        agg.unitsAllTime += p.unitsAllTime || 0;
         agg.revenue30d += p.revenue30d || 0;
         agg.profit30d += p.profit30d || 0;
         agg.stockQty += p.stockQty || 0;
