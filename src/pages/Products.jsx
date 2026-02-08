@@ -59,10 +59,10 @@ export default function Products() {
   const normalizeKey = (sku, asin) => (sku || asin || '').trim();
 
   const resolveUnitsForRow = (row) => {
-    if (unitRangeKey === '30d') return row.units30d || 0;
-    if (unitRangeKey === '90d') return row.units90d || 0;
-    if (unitRangeKey === '365d') return row.units365d || 0;
-    if (unitRangeKey === 'all') return row.unitsAllTime || 0;
+    if (unitRangeKey === '30d') return Number(row.units30d) || 0;
+    if (unitRangeKey === '90d') return Number(row.units90d) || 0;
+    if (unitRangeKey === '365d') return Number(row.units365d) || 0;
+    if (unitRangeKey === 'all') return Number(row.unitsAllTime) || 0;
 
     const keyBase = normalizeKey(row.sku, row.asin);
     if (!keyBase) return 0;
