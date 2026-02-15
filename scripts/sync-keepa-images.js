@@ -198,6 +198,7 @@ async function run() {
   let found = 0;
   let notFound = 0;
   let failed = 0;
+  let stoppedForTokens = false;
 
   for (const item of candidates) {
     if (maxItems > 0 && processed >= maxItems) break;
@@ -230,7 +231,15 @@ async function run() {
       found += 1;
     } catch (error) {
       failed += 1;
-      console.warn(`Failed user=${item.user_id} asin=${item.asin}: ${error.message}`);
+      const message = String(error?.message || "");
+      console.warn(`Failed user=${item.user_id} asin=${item.asin}: ${message}`);
+
+      // When Keepa tokens are depleted, stop this run immediately.
+      // Nightly schedule will retry next day, avoiding pointless calls and long noisy runs.
+      if (message.includes("tokens safety stop") || message.includes("Keepa 429")) {
+        stoppedForTokens = true;
+        break;
+      }
     }
 
     if (delayMs > 0) {
@@ -246,6 +255,7 @@ async function run() {
         reusedFromAsinImages: reused,
         notFound,
         failed,
+        stoppedForTokens,
         scanned: candidates.length
       },
       null,
