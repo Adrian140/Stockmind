@@ -1,0 +1,82 @@
+name: Sync Keepa Images
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Keepa image sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          KEEPA_API_KEYS: ${{ secrets.KEEPA_API_KEYS }}
+          KEEPA_TOKENS_PER_MINUTE: ${{ secrets.KEEPA_TOKENS_PER_MINUTE || '1' }}
+          KEEPA_TOKEN_SAFETY_REMAINING: ${{ secrets.KEEPA_TOKEN_SAFETY_REMAINING || '0' }}
+          KEEPA_ITEMS_PER_RUN: ${{ secrets.KEEPA_ITEMS_PER_RUN || '0' }}
+          KEEPA_BATCH_SIZE: ${{ secrets.KEEPA_BATCH_SIZE || '500' }}
+          SUPABASE_ADMIN_USER_ID: ${{ secrets.SUPABASE_ADMIN_USER_ID }}
+        run: |
+          set +e
+          timeout --signal=TERM --kill-after=30s 330m pnpm run sync-keepa-images
+          exit_code=$?
+
+          if [ "$exit_code" -eq 124 ]; then
+            echo "Keepa sync reached 5h30 runtime limit; ending successfully for relaunch."
+            exit 0
+          fi
+
+          exit "$exit_code"
+
+      - name: Relaunch immediately
+        if: ${{ success() }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'sync-keepa-images.yml',
+              per_page: 5
+            });
+            const hasActive = (data.workflow_runs || []).some((r) =>
+              r.id !== context.runId &&
+              ['in_progress', 'queued', 'waiting', 'requested'].includes(r.status)
+            );
+            if (hasActive) {
+              core.info('Există deja un run în desfășurare/queue; nu mai trimit unul nou.');
+              return;
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'sync-keepa-images.yml',
+              ref: 'main'
+            });
+            core.info('Run nou trimis prin workflow_dispatch.');
