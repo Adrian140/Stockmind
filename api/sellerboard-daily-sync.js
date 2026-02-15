@@ -44,7 +44,7 @@ const fetchCsvText = async (url) => {
 const dedupeRows = (rows) => {
   const map = new Map();
   for (const r of rows) {
-    const key = `${r.report_date}|${r.marketplace}|${r.asin}`;
+    const key = `${r.report_date}|${r.marketplace}|${r.sku}`;
     if (!map.has(key)) map.set(key, r);
   }
   return Array.from(map.values());
@@ -81,7 +81,7 @@ const upsertDaily = async (supabase, userId, rows, batchSize = 500) => {
     const { data, error } = await supabase
       .from("sellerboard_daily")
       .upsert(batch, {
-        onConflict: "user_id,asin,marketplace,report_date"
+        onConflict: "user_id,sku,marketplace,report_date"
       })
       .select("id");
 
@@ -108,17 +108,39 @@ export default async function handler(req, res) {
 
     let imported = 0;
     let marketplaces = 0;
-    const todayLocal = getTodayInBucharest();
+    const failures = [];
+    const processed = [];
     const skuSet = new Set();
-    for (const [, url] of entries) {
-      const csvText = await fetchCsvText(url);
-      const csvData = parseCSV(csvText);
-      if (csvData.length === 0) continue;
-      const rows = mapCSVToDailyRows(csvData).filter((r) => r.report_date === todayLocal);
-      if (rows.length === 0) continue;
-      imported += await upsertDaily(supabase, userId, rows);
-      marketplaces += 1;
-      rows.forEach((r) => r.sku && skuSet.add(r.sku));
+    for (const [market, url] of entries) {
+      try {
+        const csvText = await fetchCsvText(url);
+        const csvData = parseCSV(csvText);
+        if (csvData.length === 0) {
+          processed.push({ market, imported: 0, report_date: null, reason: "empty_csv" });
+          continue;
+        }
+
+        const rowsAll = mapCSVToDailyRows(csvData);
+        if (rowsAll.length === 0) {
+          processed.push({ market, imported: 0, report_date: null, reason: "no_mappable_rows" });
+          continue;
+        }
+
+        // Use latest date available in each marketplace export; some accounts receive T-1 data.
+        const latestDate = rowsAll.reduce((acc, row) => (row.report_date > acc ? row.report_date : acc), rowsAll[0].report_date);
+        const rows = rowsAll.filter((r) => r.report_date === latestDate);
+        if (rows.length === 0) {
+          processed.push({ market, imported: 0, report_date: latestDate, reason: "no_rows_for_latest_date" });
+          continue;
+        }
+
+        imported += await upsertDaily(supabase, userId, rows);
+        marketplaces += 1;
+        rows.forEach((r) => r.sku && skuSet.add(r.sku));
+        processed.push({ market, imported: rows.length, report_date: latestDate });
+      } catch (error) {
+        failures.push({ market, error: error.message });
+      }
     }
 
     if (imported > 0) {
@@ -129,7 +151,13 @@ export default async function handler(req, res) {
       });
     }
 
-    res.status(200).json({ ok: true, imported, marketplaces, report_date: todayLocal });
+    res.status(200).json({
+      ok: failures.length === 0,
+      imported,
+      marketplaces,
+      processed,
+      failures
+    });
   } catch (error) {
     console.error("Daily sync error:", error);
     res.status(500).json({ error: error.message });

@@ -27,7 +27,7 @@ export default function Integrations() {
         .from("integrations")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
         setKeepaKey(data.keepa_api_key || "");
