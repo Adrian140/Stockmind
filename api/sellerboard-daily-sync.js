@@ -23,8 +23,17 @@ const DAILY_URLS = {
   UK: process.env.SELLERBOARD_DAILY_URL_UK
 };
 
-const listDailyUrls = () =>
-  Object.entries(DAILY_URLS).filter(([, url]) => typeof url === "string" && url.trim() !== "");
+const listDailyUrls = () => {
+  const specific = Object.entries(DAILY_URLS).filter(([, url]) => typeof url === "string" && url.trim() !== "");
+  if (specific.length > 0) return specific;
+
+  const fallback = process.env.SELLERBOARD_DAILY_URL;
+  if (typeof fallback === "string" && fallback.trim() !== "") {
+    return [["DEFAULT", fallback]];
+  }
+
+  return [];
+};
 
 const fetchCsvText = async (url) => {
   const res = await fetch(url, {
