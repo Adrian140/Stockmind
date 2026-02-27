@@ -191,9 +191,43 @@ const DAILY_URLS = {
   UK: process.env.SELLERBOARD_DAILY_URL_UK
 };
 
+const parseMarketplaceUrlMap = (raw) => {
+  if (!raw || typeof raw !== "string") return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  // Accept JSON map: {"DE":"https://...","FR":"https://..."}
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Object.entries(parsed || {})
+        .map(([k, v]) => [String(k || "").toUpperCase().trim(), String(v || "").trim()])
+        .filter(([k, v]) => k && v);
+    } catch (error) {
+      console.warn("Invalid SELLERBOARD_DAILY_URLS JSON:", error.message);
+    }
+  }
+
+  // Accept line format: DE=https://... (one per line)
+  return trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const idx = line.indexOf("=");
+      if (idx <= 0) return null;
+      const market = line.slice(0, idx).trim().toUpperCase();
+      const url = line.slice(idx + 1).trim();
+      return market && url ? [market, url] : null;
+    })
+    .filter(Boolean);
+};
+
 const listDailyUrls = () => {
   const specific = Object.entries(DAILY_URLS).filter(([, url]) => typeof url === "string" && url.trim() !== "");
-  if (specific.length > 0) return specific;
+  const mapped = parseMarketplaceUrlMap(process.env.SELLERBOARD_DAILY_URLS);
+  const combined = [...specific, ...mapped];
+  if (combined.length > 0) return combined;
 
   const fallback = process.env.SELLERBOARD_DAILY_URL;
   if (typeof fallback === "string" && fallback.trim() !== "") {
@@ -258,7 +292,8 @@ const upsertDaily = async (supabase, userId, rows, batchSize = 500) => {
     const { data, error } = await supabase
       .from("sellerboard_daily")
       .upsert(batch, {
-        onConflict: "user_id,sku,marketplace,report_date"
+        onConflict: "user_id,sku,marketplace,report_date",
+        ignoreDuplicates: true
       })
       .select("id");
 
@@ -303,18 +338,47 @@ export default async function handler(req, res) {
           continue;
         }
 
-        // Use latest date available in each marketplace export; some accounts receive T-1 data.
-        const latestDate = rowsAll.reduce((acc, row) => (row.report_date > acc ? row.report_date : acc), rowsAll[0].report_date);
-        const rows = rowsAll.filter((r) => r.report_date === latestDate);
-        if (rows.length === 0) {
-          processed.push({ market, imported: 0, report_date: latestDate, reason: "no_rows_for_latest_date" });
-          continue;
-        }
+        if (market === "DEFAULT") {
+          // Single export may contain multiple marketplaces.
+          const byMarket = new Map();
+          for (const row of rowsAll) {
+            const m = row.marketplace || "DE";
+            if (!byMarket.has(m)) byMarket.set(m, []);
+            byMarket.get(m).push(row);
+          }
 
-        imported += await upsertDaily(supabase, userId, rows);
-        marketplaces += 1;
-        rows.forEach((r) => r.sku && skuSet.add(r.sku));
-        processed.push({ market, imported: rows.length, report_date: latestDate });
+          for (const [actualMarket, marketRows] of byMarket.entries()) {
+            const latestDate = marketRows.reduce(
+              (acc, row) => (row.report_date > acc ? row.report_date : acc),
+              marketRows[0].report_date
+            );
+            const rows = marketRows.filter((r) => r.report_date === latestDate);
+            if (rows.length === 0) {
+              processed.push({ market: actualMarket, imported: 0, report_date: latestDate, reason: "no_rows_for_latest_date" });
+              continue;
+            }
+
+            const inserted = await upsertDaily(supabase, userId, rows);
+            imported += inserted;
+            marketplaces += 1;
+            rows.forEach((r) => r.sku && skuSet.add(r.sku));
+            processed.push({ market: actualMarket, imported: inserted, report_date: latestDate });
+          }
+        } else {
+          // Use latest date available in each marketplace export; some accounts receive T-1 data.
+          const latestDate = rowsAll.reduce((acc, row) => (row.report_date > acc ? row.report_date : acc), rowsAll[0].report_date);
+          const rows = rowsAll.filter((r) => r.report_date === latestDate);
+          if (rows.length === 0) {
+            processed.push({ market, imported: 0, report_date: latestDate, reason: "no_rows_for_latest_date" });
+            continue;
+          }
+
+          const inserted = await upsertDaily(supabase, userId, rows);
+          imported += inserted;
+          marketplaces += 1;
+          rows.forEach((r) => r.sku && skuSet.add(r.sku));
+          processed.push({ market, imported: inserted, report_date: latestDate });
+        }
       } catch (error) {
         failures.push({ market, error: error.message });
       }
