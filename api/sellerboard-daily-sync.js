@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { parseCSV, mapCSVToDailyRows } from "../src/services/sellerboard.service.js";
 
 const getSupabaseAdmin = () => {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -9,6 +8,175 @@ const getSupabaseAdmin = () => {
   }
   return createClient(url, key, { auth: { persistSession: false } });
 };
+
+const MARKETPLACE_MAP = {
+  "amazon.de": "DE",
+  "amazon.co.uk": "UK",
+  "amazon.fr": "FR",
+  "amazon.it": "IT",
+  "amazon.es": "ES",
+  "amazon.com": "US",
+  "amazon.ca": "CA",
+  "amazon.com.mx": "MX",
+  "amazon.co.jp": "JP",
+  "amazon.com.au": "AU"
+};
+
+function mapMarketplace(sellerboardMarketplace) {
+  if (!sellerboardMarketplace) return "DE";
+  const marketplace = sellerboardMarketplace.toLowerCase().trim();
+  return MARKETPLACE_MAP[marketplace] || String(sellerboardMarketplace).toUpperCase().trim() || "DE";
+}
+
+function parseNumber(value) {
+  if (value === null || value === undefined) return 0;
+  const cleaned = String(value)
+    .replace(/\u00A0/g, " ")
+    .replace(/\s/g, "")
+    .replace(",", ".");
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function parseCsvDate(value) {
+  if (!value) return null;
+  const parts = String(value).split("/");
+  if (parts.length !== 3) return null;
+  const [p1, p2, p3] = parts.map((n) => parseInt(n, 10));
+  if (!p1 || !p2 || !p3) return null;
+  let day = p2;
+  let month = p1;
+  if (p1 > 12) {
+    day = p1;
+    month = p2;
+  }
+  const yyyy = p3;
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseCSV(csvText) {
+  if (!csvText || csvText.trim() === "") return [];
+  const firstLine = csvText.split(/\r?\n/)[0] || "";
+  const countDelimiter = (line, delimiter) => {
+    let inQuotes = false;
+    let count = 0;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const next = line[i + 1];
+      if (char === '"' && next === '"') {
+        i += 1;
+        continue;
+      }
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (!inQuotes && char === delimiter) count += 1;
+    }
+    return count;
+  };
+
+  const commaCount = countDelimiter(firstLine, ",");
+  const semicolonCount = countDelimiter(firstLine, ";");
+  const delimiter = semicolonCount > commaCount ? ";" : ",";
+
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const next = csvText[i + 1];
+    if (char === '"' && next === '"') {
+      field += '"';
+      i += 1;
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === delimiter && !inQuotes) {
+      row.push(field);
+      field = "";
+      continue;
+    }
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (field.length > 0 || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+      row = [];
+      field = "";
+      continue;
+    }
+    field += char;
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((h, idx) => {
+    const trimmed = (h || "").trim();
+    if (idx === 0 && trimmed.charCodeAt(0) === 0xfeff) return trimmed.slice(1);
+    return trimmed;
+  });
+  const data = [];
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i];
+    if (!values || values.length === 0) continue;
+    const rowObj = {};
+    headers.forEach((header, index) => {
+      rowObj[header] = (values[index] ?? "").trim();
+    });
+    data.push(rowObj);
+  }
+  return data;
+}
+
+function mapCSVToDailyRows(csvData) {
+  const rows = [];
+  for (const row of csvData) {
+    const asin = row["ASIN"] || row["asin"] || "";
+    const sku = row["SKU"] || row["sku"] || "";
+    const marketplace = row["Marketplace"] || row["marketplace"] || "";
+    const date = parseCsvDate(row["Date"]);
+    if (!asin || !sku || !marketplace || !date) continue;
+
+    const units =
+      parseNumber(row["UnitsOrganic"]) +
+      parseNumber(row["UnitsPPC"]) +
+      parseNumber(row["UnitsSponsoredProducts"]) +
+      parseNumber(row["UnitsSponsoredDisplay"]);
+
+    const revenue =
+      parseNumber(row["SalesOrganic"]) +
+      parseNumber(row["SalesPPC"]) +
+      parseNumber(row["SalesSponsoredProducts"]) +
+      parseNumber(row["SalesSponsoredDisplay"]);
+
+    const netProfit = parseNumber(row["NetProfit"]);
+    const roi = Math.max(-9999.99, Math.min(9999.99, parseNumber(row["ROI"])));
+
+    rows.push({
+      report_date: date,
+      marketplace: mapMarketplace(marketplace),
+      asin,
+      sku,
+      title: row["Name"] || row["Title"] || "",
+      units_total: Math.round(units),
+      revenue_total: Number(revenue.toFixed(2)),
+      net_profit: Number(netProfit.toFixed(2)),
+      roi: Number(roi.toFixed(2)),
+      raw: row
+    });
+  }
+  return rows;
+}
 
 const DAILY_URLS = {
   BE: process.env.SELLERBOARD_DAILY_URL_BE,
