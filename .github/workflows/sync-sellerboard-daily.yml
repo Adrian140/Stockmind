@@ -1,0 +1,41 @@
+name: Sync Sellerboard Daily
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly run (UTC). 23:00 UTC = 01:00 Romania in winter, 02:00 in summer.
+    - cron: "0 23 * * *"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Trigger Sellerboard daily sync API
+        env:
+          STOCKMIND_BASE_URL: ${{ secrets.STOCKMIND_BASE_URL }}
+        run: |
+          set -euo pipefail
+          BASE_URL="${STOCKMIND_BASE_URL:-https://www.stockmind.fr}"
+          ENDPOINT="${BASE_URL%/}/api/sellerboard-daily-sync"
+          echo "Calling ${ENDPOINT}"
+          curl -fsS "${ENDPOINT}" | tee response.json
+
+      - name: Validate response
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          with open("response.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          print("ok:", data.get("ok"))
+          print("imported:", data.get("imported"))
+          print("marketplaces:", data.get("marketplaces"))
+          failures = data.get("failures") or []
+          if failures:
+              raise SystemExit(f"Sync has failures: {failures}")
+          PY
