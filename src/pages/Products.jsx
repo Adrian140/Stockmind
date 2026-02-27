@@ -30,6 +30,8 @@ export default function Products() {
   const [rangeLoading, setRangeLoading] = useState(false);
 
   const unitRanges = [
+    { key: '1d', label: 'Today', days: 1 },
+    { key: '7d', label: '7 days', days: 7 },
     { key: '30d', label: '30 days', days: 30 },
     { key: '60d', label: '60 days', days: 60 },
     { key: '90d', label: '90 days', days: 90 },
@@ -146,6 +148,8 @@ export default function Products() {
 
     const now = new Date();
     let days = 30;
+    if (unitRangeKey === '1d') days = 1;
+    if (unitRangeKey === '7d') days = 7;
     if (unitRangeKey === '60d') days = 60;
     if (unitRangeKey === '90d') days = 90;
     if (unitRangeKey === '365d') days = 365;
