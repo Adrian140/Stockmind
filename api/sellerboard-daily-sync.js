@@ -409,11 +409,14 @@ export default async function handler(req, res) {
     }
 
     if (imported > 0) {
-      await supabase.rpc("refresh_products_from_daily_skus", {
+      const { error: refreshError } = await supabase.rpc("refresh_products_from_daily_skus", {
         p_user: userId,
         p_skus: Array.from(skuSet),
         p_marketplace: null
       });
+      if (refreshError) {
+        failures.push({ market: "REFRESH", error: refreshError.message });
+      }
     }
 
     res.status(200).json({
