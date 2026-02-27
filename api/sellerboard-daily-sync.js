@@ -15,6 +15,12 @@ const MARKETPLACE_MAP = {
   "amazon.fr": "FR",
   "amazon.it": "IT",
   "amazon.es": "ES",
+  "amazon.nl": "NL",
+  "amazon.pl": "PL",
+  "amazon.se": "SE",
+  "amazon.com.be": "BE",
+  "amazon.ie": "IE",
+  "amazon.be": "BE",
   "amazon.com": "US",
   "amazon.ca": "CA",
   "amazon.com.mx": "MX",
@@ -22,10 +28,26 @@ const MARKETPLACE_MAP = {
   "amazon.com.au": "AU"
 };
 
+const ALLOWED_MARKETS = new Set(["DE", "FR", "IT", "ES", "UK", "BE", "NL", "PL", "SE", "IE"]);
+
 function mapMarketplace(sellerboardMarketplace) {
   if (!sellerboardMarketplace) return "DE";
-  const marketplace = sellerboardMarketplace.toLowerCase().trim();
-  return MARKETPLACE_MAP[marketplace] || String(sellerboardMarketplace).toUpperCase().trim() || "DE";
+  const raw = String(sellerboardMarketplace).trim();
+  const normalized = raw.toLowerCase();
+
+  let market = MARKETPLACE_MAP[normalized];
+  if (!market) {
+    const upper = raw.toUpperCase();
+    if (ALLOWED_MARKETS.has(upper)) {
+      market = upper;
+    } else if (upper.startsWith("AMAZON.")) {
+      if (upper === "AMAZON.COM.BE") market = "BE";
+      else if (upper === "AMAZON.CO.UK") market = "UK";
+      else market = upper.replace("AMAZON.", "").replace("CO.", "").replace("COM.", "").trim();
+    }
+  }
+
+  return ALLOWED_MARKETS.has(market) ? market : null;
 }
 
 function parseNumber(value) {
@@ -146,6 +168,8 @@ function mapCSVToDailyRows(csvData) {
     const marketplace = row["Marketplace"] || row["marketplace"] || "";
     const date = parseCsvDate(row["Date"]);
     if (!asin || !sku || !marketplace || !date) continue;
+    const mappedMarketplace = mapMarketplace(marketplace);
+    if (!mappedMarketplace) continue;
 
     const units =
       parseNumber(row["UnitsOrganic"]) +
@@ -164,7 +188,7 @@ function mapCSVToDailyRows(csvData) {
 
     rows.push({
       report_date: date,
-      marketplace: mapMarketplace(marketplace),
+      marketplace: mappedMarketplace,
       asin,
       sku,
       title: row["Name"] || row["Title"] || "",
