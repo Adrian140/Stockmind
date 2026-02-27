@@ -23,7 +23,13 @@ jobs:
           BASE_URL="${STOCKMIND_BASE_URL:-https://www.stockmind.fr}"
           ENDPOINT="${BASE_URL%/}/api/sellerboard-daily-sync"
           echo "Calling ${ENDPOINT}"
-          curl -fsS "${ENDPOINT}" | tee response.json
+          HTTP_CODE="$(curl -sS -o response.json -w "%{http_code}" "${ENDPOINT}")"
+          cat response.json
+          echo
+          echo "HTTP status: ${HTTP_CODE}"
+          if [ "${HTTP_CODE}" -ge 400 ]; then
+            exit 1
+          fi
 
       - name: Validate response
         run: |
