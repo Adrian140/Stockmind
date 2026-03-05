@@ -160,9 +160,14 @@ export default function Products() {
       load({ startDate: start, endDate: end });
       return;
     }
-    const endDate = now;
-    const startDate = new Date(now);
-    startDate.setDate(endDate.getDate() - days);
+    const referenceDate = unitRangeKey === '1d'
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+      : now;
+    const endDate = referenceDate;
+    const startDate = new Date(referenceDate);
+    if (unitRangeKey !== '1d') {
+      startDate.setDate(endDate.getDate() - days);
+    }
     load({ startDate, endDate });
   }, [unitRangeKey, customStart, customEnd, selectedMarketplace, user]);
 
