@@ -23,7 +23,7 @@ export default function Products() {
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [unitRangeKey, setUnitRangeKey] = useState('30d');
+  const [unitRangeKey, setUnitRangeKey] = useState('1d');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [rangeMetricsMap, setRangeMetricsMap] = useState({});
