@@ -10,7 +10,8 @@
     "migrate": "node migrate-to-supabase.js",
     "setup": "node setup-database.js",
     "setup-admin": "node setup-admin-account.js",
-    "sync-keepa-images": "node scripts/sync-keepa-images.js"
+    "sync-keepa-images": "node scripts/sync-keepa-images.js",
+    "sync-keepa-buybox": "node scripts/sync-keepa-buybox.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
