@@ -1,0 +1,47 @@
+name: Sync Keepa Buy Box
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run shortly after the daily Sellerboard sync
+    - cron: "0 4 * * *"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Keepa buy box sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          KEEPA_API_KEYS: ${{ secrets.KEEPA_API_KEYS }}
+          KEEPA_TOKENS_PER_MINUTE: ${{ secrets.KEEPA_TOKENS_PER_MINUTE || '1' }}
+          KEEPA_TOKEN_SAFETY_REMAINING: ${{ secrets.KEEPA_TOKEN_SAFETY_REMAINING || '0' }}
+          KEEPA_BATCH_SIZE: ${{ secrets.KEEPA_BATCH_SIZE || '50' }}
+          KEEPA_ITEMS_PER_RUN: ${{ secrets.KEEPA_ITEMS_PER_RUN || '0' }}
+          SUPABASE_ADMIN_USER_ID: ${{ secrets.SUPABASE_ADMIN_USER_ID }}
+          KEEPA_UPDATE_ALL_PRODUCTS: ${{ secrets.KEEPA_UPDATE_ALL_PRODUCTS || '0' }}
+        run: pnpm run sync-keepa-buybox
