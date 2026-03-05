@@ -131,7 +131,6 @@ async function fetchBuyBoxFromKeepa(keepaKey, domain, asins) {
     domain: String(domainId),
     asin: asins.join(","),
     buybox: "1",
-    stats: "0",
     history: "0",
     offers: "0"
   });
