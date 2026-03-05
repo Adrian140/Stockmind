@@ -316,13 +316,15 @@ const upsertDaily = async (supabase, userId, rows, batchSize = 500) => {
     const { data, error } = await supabase
       .from("sellerboard_daily")
       .upsert(batch, {
-        onConflict: "user_id,sku,marketplace,report_date",
-        ignoreDuplicates: true
+        onConflict: "user_id,sku,marketplace,report_date"
       })
       .select("id");
 
     if (error) throw error;
-    total += data?.length || 0;
+
+    // PostgREST usually returns affected rows due `.select("id")`.
+    // Fallback to attempted batch size to avoid false zero counters.
+    total += data?.length ?? batch.length;
   }
   return total;
 };
@@ -344,6 +346,9 @@ export default async function handler(req, res) {
 
     let imported = 0;
     let marketplaces = 0;
+    let csvRowsTotal = 0;
+    let mappableRowsTotal = 0;
+    let latestRowsTotal = 0;
     const failures = [];
     const processed = [];
     const skuSet = new Set();
@@ -351,14 +356,24 @@ export default async function handler(req, res) {
       try {
         const csvText = await fetchCsvText(url);
         const csvData = parseCSV(csvText);
+        csvRowsTotal += csvData.length;
         if (csvData.length === 0) {
-          processed.push({ market, imported: 0, report_date: null, reason: "empty_csv" });
+          processed.push({ market, imported: 0, csv_rows: 0, mapped_rows: 0, latest_rows: 0, report_date: null, reason: "empty_csv" });
           continue;
         }
 
         const rowsAll = mapCSVToDailyRows(csvData);
+        mappableRowsTotal += rowsAll.length;
         if (rowsAll.length === 0) {
-          processed.push({ market, imported: 0, report_date: null, reason: "no_mappable_rows" });
+          processed.push({
+            market,
+            imported: 0,
+            csv_rows: csvData.length,
+            mapped_rows: 0,
+            latest_rows: 0,
+            report_date: null,
+            reason: "no_mappable_rows"
+          });
           continue;
         }
 
@@ -377,8 +392,17 @@ export default async function handler(req, res) {
               marketRows[0].report_date
             );
             const rows = marketRows.filter((r) => r.report_date === latestDate);
+            latestRowsTotal += rows.length;
             if (rows.length === 0) {
-              processed.push({ market: actualMarket, imported: 0, report_date: latestDate, reason: "no_rows_for_latest_date" });
+              processed.push({
+                market: actualMarket,
+                imported: 0,
+                csv_rows: csvData.length,
+                mapped_rows: marketRows.length,
+                latest_rows: 0,
+                report_date: latestDate,
+                reason: "no_rows_for_latest_date"
+              });
               continue;
             }
 
@@ -386,14 +410,31 @@ export default async function handler(req, res) {
             imported += inserted;
             marketplaces += 1;
             rows.forEach((r) => r.sku && skuSet.add(r.sku));
-            processed.push({ market: actualMarket, imported: inserted, report_date: latestDate });
+            processed.push({
+              market: actualMarket,
+              imported: inserted,
+              csv_rows: csvData.length,
+              mapped_rows: marketRows.length,
+              latest_rows: rows.length,
+              report_date: latestDate,
+              duplicates_or_unchanged: Math.max(0, rows.length - inserted)
+            });
           }
         } else {
           // Use latest date available in each marketplace export; some accounts receive T-1 data.
           const latestDate = rowsAll.reduce((acc, row) => (row.report_date > acc ? row.report_date : acc), rowsAll[0].report_date);
           const rows = rowsAll.filter((r) => r.report_date === latestDate);
+          latestRowsTotal += rows.length;
           if (rows.length === 0) {
-            processed.push({ market, imported: 0, report_date: latestDate, reason: "no_rows_for_latest_date" });
+            processed.push({
+              market,
+              imported: 0,
+              csv_rows: csvData.length,
+              mapped_rows: rowsAll.length,
+              latest_rows: 0,
+              report_date: latestDate,
+              reason: "no_rows_for_latest_date"
+            });
             continue;
           }
 
@@ -401,7 +442,15 @@ export default async function handler(req, res) {
           imported += inserted;
           marketplaces += 1;
           rows.forEach((r) => r.sku && skuSet.add(r.sku));
-          processed.push({ market, imported: inserted, report_date: latestDate });
+          processed.push({
+            market,
+            imported: inserted,
+            csv_rows: csvData.length,
+            mapped_rows: rowsAll.length,
+            latest_rows: rows.length,
+            report_date: latestDate,
+            duplicates_or_unchanged: Math.max(0, rows.length - inserted)
+          });
         }
       } catch (error) {
         failures.push({ market, error: error.message });
@@ -423,6 +472,9 @@ export default async function handler(req, res) {
       ok: failures.length === 0,
       imported,
       marketplaces,
+      csv_rows_total: csvRowsTotal,
+      mappable_rows_total: mappableRowsTotal,
+      latest_rows_total: latestRowsTotal,
       processed,
       failures
     });
