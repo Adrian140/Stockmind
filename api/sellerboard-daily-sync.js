@@ -187,6 +187,8 @@ function mapCSVToDailyRows(csvData) {
 
     const netProfit = parseNumber(row["NetProfit"]);
     const roi = Math.max(-9999.99, Math.min(9999.99, parseNumber(row["ROI"])));
+    const costTotal = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
+    const costPerUnit = units > 0 ? Math.abs(costTotal) / units : null;
 
     rows.push({
       report_date: date,
@@ -198,6 +200,7 @@ function mapCSVToDailyRows(csvData) {
       revenue_total: Number(revenue.toFixed(2)),
       net_profit: Number(netProfit.toFixed(2)),
       roi: Number(roi.toFixed(2)),
+      cost_of_goods: costPerUnit !== null ? Number(costPerUnit.toFixed(4)) : null,
       raw: row
     });
   }
