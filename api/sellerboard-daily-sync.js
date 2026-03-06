@@ -506,7 +506,7 @@ export default async function handler(req, res) {
         .from("sellerboard_daily")
         .select("sku,cost_of_goods,report_date")
         .in("sku", skuList)
-        .not("cost_of_goods", "is", null)
+        .gt("cost_of_goods", 0)
         .order("sku", { ascending: true })
         .order("report_date", { ascending: false });
 
@@ -521,13 +521,13 @@ export default async function handler(req, res) {
         }
 
         for (const [sku, cost] of latestCostBySku.entries()) {
-          if (cost === null || cost === undefined) continue;
+          if (cost === null || cost === undefined || cost <= 0) continue;
           const { error: updateError } = await supabase
             .from("products")
             .update({ cogs: cost, updated_at: new Date().toISOString() })
             .eq("user_id", userId)
             .eq("sku", sku)
-            .or(`cogs.is.null,cogs.neq.${cost}`);
+            .or(`cogs.is.null,cogs.eq.0,cogs.lt.0,cogs.neq.${cost}`);
           if (updateError) {
             failures.push({ market: "COGS", sku, error: updateError.message });
           }
