@@ -196,12 +196,13 @@ function parseCsvDate(value) {
   if (parts.length !== 3) return null;
   let [p1, p2, p3] = parts.map(n => parseInt(n, 10));
   if (!p1 || !p2 || !p3) return null;
-  // If first part > 12, assume DD/MM/YYYY
-  let day = p2;
-  let month = p1;
-  if (p1 > 12) {
-    day = p1;
-    month = p2;
+  // Sellerboard export este dd/mm/yyyy (format european). Dacă luna pare >12, inversăm.
+  let day = p1;
+  let month = p2;
+  if (month > 12 && day <= 12) {
+    const tmp = day;
+    day = month;
+    month = tmp;
   }
   const yyyy = p3;
   const mm = String(month).padStart(2, "0");
