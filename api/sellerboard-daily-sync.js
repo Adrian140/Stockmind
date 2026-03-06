@@ -375,7 +375,6 @@ export default async function handler(req, res) {
     const failures = [];
     const processed = [];
     const skuSet = new Set();
-    const asinSet = new Set();
     for (const [market, url] of entries) {
       try {
         const csvText = await fetchCsvText(url);
@@ -434,7 +433,6 @@ export default async function handler(req, res) {
           imported += inserted;
           marketplaces += 1;
           rows.forEach((r) => r.sku && skuSet.add(r.sku));
-          rows.forEach((r) => r.asin && asinSet.add(r.asin));
           processed.push({
             market: actualMarket,
             imported: inserted,
@@ -467,7 +465,6 @@ export default async function handler(req, res) {
           imported += inserted;
           marketplaces += 1;
           rows.forEach((r) => r.sku && skuSet.add(r.sku));
-          rows.forEach((r) => r.asin && asinSet.add(r.asin));
           processed.push({
             market,
             imported: inserted,
@@ -502,37 +499,37 @@ export default async function handler(req, res) {
       }
     }
 
-    // Propagăm COGS: ultimul cost non-null per ASIN în products.cogs (nu rescriem cu NULL).
-    if (asinSet.size > 0) {
-      const asinList = Array.from(asinSet);
+    // Propagăm COGS: ultimul cost non-null per SKU în products.cogs (nu rescriem cu NULL).
+    if (skuSet.size > 0) {
+      const skuList = Array.from(skuSet);
       const { data: costRows, error: costError } = await supabase
         .from("sellerboard_daily")
-        .select("asin,cost_of_goods,report_date")
-        .in("asin", asinList)
+        .select("sku,cost_of_goods,report_date")
+        .in("sku", skuList)
         .not("cost_of_goods", "is", null)
-        .order("asin", { ascending: true })
+        .order("sku", { ascending: true })
         .order("report_date", { ascending: false });
 
       if (costError) {
         failures.push({ market: "COGS", error: costError.message });
       } else {
-        const latestCostByAsin = new Map();
+        const latestCostBySku = new Map();
         for (const row of costRows || []) {
-          if (!latestCostByAsin.has(row.asin)) {
-            latestCostByAsin.set(row.asin, row.cost_of_goods);
+          if (!latestCostBySku.has(row.sku)) {
+            latestCostBySku.set(row.sku, row.cost_of_goods);
           }
         }
 
-        for (const [asin, cost] of latestCostByAsin.entries()) {
+        for (const [sku, cost] of latestCostBySku.entries()) {
           if (cost === null || cost === undefined) continue;
           const { error: updateError } = await supabase
             .from("products")
             .update({ cogs: cost, updated_at: new Date().toISOString() })
             .eq("user_id", userId)
-            .eq("asin", asin)
+            .eq("sku", sku)
             .or(`cogs.is.null,cogs.neq.${cost}`);
           if (updateError) {
-            failures.push({ market: "COGS", asin, error: updateError.message });
+            failures.push({ market: "COGS", sku, error: updateError.message });
           }
         }
       }
