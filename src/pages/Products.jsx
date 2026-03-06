@@ -104,11 +104,9 @@ export default function Products() {
       })()
     }));
 
-    if (unitRangeKey === 'all') {
-      return withMetrics;
-    }
-
-    return withMetrics.filter(p => (p.unitsSelected || 0) > 0);
+    // Afișăm toate produsele, chiar dacă pe intervalul curent au 0 unități.
+    // Unitățile rămân vizibile în coloane; filtre suplimentare pot fi aplicate manual.
+    return withMetrics;
   }, [displayProducts, unitRangeKey, rangeMetricsMap]);
 
   useEffect(() => {
