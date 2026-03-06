@@ -164,30 +164,44 @@ function parseCSV(csvText) {
 
 function mapCSVToDailyRows(csvData) {
   const rows = [];
+  const getField = (row, variants) => {
+    for (const key of variants) {
+      if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
+        return row[key];
+      }
+    }
+    return null;
+  };
+
   for (const row of csvData) {
-    const asin = row["ASIN"] || row["asin"] || "";
-    const sku = row["SKU"] || row["sku"] || "";
-    const marketplace = row["Marketplace"] || row["marketplace"] || "";
-    const date = parseCsvDate(row["Date"]);
+    const asin = getField(row, ["ASIN", "asin"]) || "";
+    const sku = getField(row, ["SKU", "sku"]) || "";
+    const marketplace = getField(row, ["Marketplace", "marketplace"]) || "";
+    const date = parseCsvDate(getField(row, ["Date", "date"]));
     if (!asin || !sku || !marketplace || !date) continue;
     const mappedMarketplace = mapMarketplace(marketplace);
     if (!mappedMarketplace) continue;
 
-    const units =
-      parseNumber(row["UnitsOrganic"]) +
-      parseNumber(row["UnitsPPC"]) +
-      parseNumber(row["UnitsSponsoredProducts"]) +
-      parseNumber(row["UnitsSponsoredDisplay"]);
+    // Fallback pentru exporturile de tip „Dashboard Products” (Units/Sales/Ads/Cost of Goods)
+    const units = parseNumber(getField(row, [
+      "UnitsOrganic",
+      "UnitsPPC",
+      "UnitsSponsoredProducts",
+      "UnitsSponsoredDisplay",
+      "Units"
+    ]));
 
     const revenue =
-      parseNumber(row["SalesOrganic"]) +
-      parseNumber(row["SalesPPC"]) +
-      parseNumber(row["SalesSponsoredProducts"]) +
-      parseNumber(row["SalesSponsoredDisplay"]);
+      parseNumber(getField(row, ["SalesOrganic", "Sales"])) +
+      parseNumber(getField(row, ["SalesPPC", "Sponsored products (PPC)"])) +
+      parseNumber(getField(row, ["SalesSponsoredProducts"])) +
+      parseNumber(getField(row, ["SalesSponsoredDisplay", "Sponsored Display"]));
 
-    const netProfit = parseNumber(row["NetProfit"]);
-    const roi = Math.max(-9999.99, Math.min(9999.99, parseNumber(row["ROI"])));
-    const costTotal = parseNumber(row["Cost of Goods"] || row["ProductCost Sales"] || row["ProductCost Sales "]);
+    const netProfit = parseNumber(getField(row, ["NetProfit", "Net profit"]));
+    const roi = Math.max(-9999.99, Math.min(9999.99, parseNumber(getField(row, ["ROI"]))));
+    const costTotal = parseNumber(
+      getField(row, ["Cost of Goods", "ProductCost Sales", "ProductCost Sales "])
+    );
     const costPerUnit = units > 0 ? Math.abs(costTotal) / units : null;
 
     rows.push({
