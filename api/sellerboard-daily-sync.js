@@ -375,6 +375,7 @@ export default async function handler(req, res) {
     const failures = [];
     const processed = [];
     const skuSet = new Set();
+    const asinSet = new Set();
     for (const [market, url] of entries) {
       try {
         const csvText = await fetchCsvText(url);
@@ -429,15 +430,16 @@ export default async function handler(req, res) {
               continue;
             }
 
-            const inserted = await upsertDaily(supabase, userId, rows);
-            imported += inserted;
-            marketplaces += 1;
-            rows.forEach((r) => r.sku && skuSet.add(r.sku));
-            processed.push({
-              market: actualMarket,
-              imported: inserted,
-              csv_rows: csvData.length,
-              mapped_rows: marketRows.length,
+          const inserted = await upsertDaily(supabase, userId, rows);
+          imported += inserted;
+          marketplaces += 1;
+          rows.forEach((r) => r.sku && skuSet.add(r.sku));
+          rows.forEach((r) => r.asin && asinSet.add(r.asin));
+          processed.push({
+            market: actualMarket,
+            imported: inserted,
+            csv_rows: csvData.length,
+            mapped_rows: marketRows.length,
               latest_rows: rows.length,
               report_date: latestDate,
               duplicates_or_unchanged: Math.max(0, rows.length - inserted)
@@ -465,6 +467,7 @@ export default async function handler(req, res) {
           imported += inserted;
           marketplaces += 1;
           rows.forEach((r) => r.sku && skuSet.add(r.sku));
+          rows.forEach((r) => r.asin && asinSet.add(r.asin));
           processed.push({
             market,
             imported: inserted,
@@ -495,6 +498,42 @@ export default async function handler(req, res) {
         if (refreshError) {
           failures.push({ market: "REFRESH", error: refreshError.message, batch_size: batch.length, batch_index: Math.floor(i / batchSize) });
           break;
+        }
+      }
+    }
+
+    // Propagăm COGS: ultimul cost non-null per ASIN în products.cogs (nu rescriem cu NULL).
+    if (asinSet.size > 0) {
+      const asinList = Array.from(asinSet);
+      const { data: costRows, error: costError } = await supabase
+        .from("sellerboard_daily")
+        .select("asin,cost_of_goods,report_date")
+        .in("asin", asinList)
+        .not("cost_of_goods", "is", null)
+        .order("asin", { ascending: true })
+        .order("report_date", { ascending: false });
+
+      if (costError) {
+        failures.push({ market: "COGS", error: costError.message });
+      } else {
+        const latestCostByAsin = new Map();
+        for (const row of costRows || []) {
+          if (!latestCostByAsin.has(row.asin)) {
+            latestCostByAsin.set(row.asin, row.cost_of_goods);
+          }
+        }
+
+        for (const [asin, cost] of latestCostByAsin.entries()) {
+          if (cost === null || cost === undefined) continue;
+          const { error: updateError } = await supabase
+            .from("products")
+            .update({ cogs: cost, updated_at: new Date().toISOString() })
+            .eq("user_id", userId)
+            .eq("asin", asin)
+            .or(`cogs.is.null,cogs.neq.${cost}`);
+          if (updateError) {
+            failures.push({ market: "COGS", asin, error: updateError.message });
+          }
         }
       }
     }
