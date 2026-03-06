@@ -162,7 +162,7 @@ function parseCSV(csvText) {
   return data;
 }
 
-function mapCSVToDailyRows(csvData) {
+function mapCSVToDailyRows(csvData, fallbackMarket = null) {
   const rows = [];
   const getField = (row, variants) => {
     for (const key of variants) {
@@ -178,8 +178,11 @@ function mapCSVToDailyRows(csvData) {
     const sku = getField(row, ["SKU", "sku"]) || "";
     const marketplace = getField(row, ["Marketplace", "marketplace"]) || "";
     const date = parseCsvDate(getField(row, ["Date", "date"]));
-    if (!asin || !sku || !marketplace || !date) continue;
-    const mappedMarketplace = mapMarketplace(marketplace);
+    if (!asin || !sku || !date) continue;
+    let mappedMarketplace = mapMarketplace(marketplace);
+    if (!mappedMarketplace && fallbackMarket) {
+      mappedMarketplace = mapMarketplace(fallbackMarket);
+    }
     if (!mappedMarketplace) continue;
 
     // Fallback pentru exporturile de tip „Dashboard Products” (Units/Sales/Ads/Cost of Goods)
@@ -382,7 +385,7 @@ export default async function handler(req, res) {
           continue;
         }
 
-        const rowsAll = mapCSVToDailyRows(csvData);
+        const rowsAll = mapCSVToDailyRows(csvData, market === "DEFAULT" ? null : market);
         mappableRowsTotal += rowsAll.length;
         if (rowsAll.length === 0) {
           processed.push({
