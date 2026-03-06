@@ -394,64 +394,66 @@ export default async function handler(req, res) {
               marketRows[0].report_date
             );
             const rows = marketRows.filter((r) => r.report_date === latestDate);
-            latestRowsTotal += rows.length;
-            if (rows.length === 0) {
+            const rowsNonZero = rows.filter((r) => (r.units_total || 0) > 0 || (r.revenue_total || 0) > 0);
+            latestRowsTotal += rowsNonZero.length;
+            if (rowsNonZero.length === 0) {
               processed.push({
                 market: actualMarket,
                 imported: 0,
                 csv_rows: csvData.length,
                 mapped_rows: marketRows.length,
-                latest_rows: 0,
+                latest_rows: rows.length,
                 report_date: latestDate,
-                reason: "no_rows_for_latest_date"
+                reason: "no_rows_with_units_or_revenue"
               });
               continue;
             }
 
-            const inserted = await upsertDaily(supabase, userId, rows);
+            const inserted = await upsertDaily(supabase, userId, rowsNonZero);
             imported += inserted;
             marketplaces += 1;
-            rows.forEach((r) => r.sku && skuSet.add(r.sku));
+            rowsNonZero.forEach((r) => r.sku && skuSet.add(r.sku));
             processed.push({
               market: actualMarket,
               imported: inserted,
               csv_rows: csvData.length,
               mapped_rows: marketRows.length,
-              latest_rows: rows.length,
+              latest_rows: rowsNonZero.length,
               report_date: latestDate,
-              duplicates_or_unchanged: Math.max(0, rows.length - inserted)
+              duplicates_or_unchanged: Math.max(0, rowsNonZero.length - inserted)
             });
           }
         } else {
           // Use latest date available in each marketplace export; some accounts receive T-1 data.
           const latestDate = rowsAll.reduce((acc, row) => (row.report_date > acc ? row.report_date : acc), rowsAll[0].report_date);
           const rows = rowsAll.filter((r) => r.report_date === latestDate);
-          latestRowsTotal += rows.length;
-          if (rows.length === 0) {
+          const rowsNonZero = rows.filter((r) => (r.units_total || 0) > 0 || (r.revenue_total || 0) > 0);
+          latestRowsTotal += rowsNonZero.length;
+          if (rowsNonZero.length === 0) {
             processed.push({
               market,
               imported: 0,
               csv_rows: csvData.length,
               mapped_rows: rowsAll.length,
-              latest_rows: 0,
+              latest_rows: rows.length,
               report_date: latestDate,
-              reason: "no_rows_for_latest_date"
+              reason: "no_rows_with_units_or_revenue"
             });
             continue;
           }
 
-          const inserted = await upsertDaily(supabase, userId, rows);
+          const inserted = await upsertDaily(supabase, userId, rowsNonZero);
           imported += inserted;
           marketplaces += 1;
-          rows.forEach((r) => r.sku && skuSet.add(r.sku));
+          rowsNonZero.forEach((r) => r.sku && skuSet.add(r.sku));
           processed.push({
             market,
             imported: inserted,
             csv_rows: csvData.length,
             mapped_rows: rowsAll.length,
-            latest_rows: rows.length,
+            latest_rows: rowsNonZero.length,
             report_date: latestDate,
-            duplicates_or_unchanged: Math.max(0, rows.length - inserted)
+            duplicates_or_unchanged: Math.max(0, rowsNonZero.length - inserted)
           });
         }
       } catch (error) {
