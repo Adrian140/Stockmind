@@ -161,9 +161,20 @@ export default function Products() {
     const referenceDate = unitRangeKey === '1d'
       ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
       : now;
-    const endDate = referenceDate;
-    const startDate = new Date(referenceDate);
-    if (unitRangeKey !== '1d') {
+
+    // Pentru intervalul 1d luăm ziua precedentă completă (00:00–23:59:59).
+    // Pentru celelalte intervale rămânem la [now - days, now].
+    let startDate;
+    let endDate;
+
+    if (unitRangeKey === '1d') {
+      startDate = new Date(referenceDate);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(referenceDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      endDate = referenceDate;
+      startDate = new Date(referenceDate);
       startDate.setDate(endDate.getDate() - days);
     }
     load({ startDate, endDate });
