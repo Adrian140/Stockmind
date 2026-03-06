@@ -457,14 +457,22 @@ export default async function handler(req, res) {
       }
     }
 
-    if (imported > 0) {
-      const { error: refreshError } = await supabase.rpc("refresh_products_from_daily_skus", {
-        p_user: userId,
-        p_skus: Array.from(skuSet),
-        p_marketplace: null
-      });
-      if (refreshError) {
-        failures.push({ market: "REFRESH", error: refreshError.message });
+    if (imported > 0 && skuSet.size > 0) {
+      const skuList = Array.from(skuSet);
+      const batchSize = Math.max(50, Math.min(500, parseInt(process.env.SB_REFRESH_BATCH_SIZE || "200", 10)));
+
+      for (let i = 0; i < skuList.length; i += batchSize) {
+        const batch = skuList.slice(i, i + batchSize);
+        const { error: refreshError } = await supabase.rpc("refresh_products_from_daily_skus", {
+          p_user: userId,
+          p_skus: batch,
+          p_marketplace: null
+        });
+
+        if (refreshError) {
+          failures.push({ market: "REFRESH", error: refreshError.message, batch_size: batch.length, batch_index: Math.floor(i / batchSize) });
+          break;
+        }
       }
     }
 
