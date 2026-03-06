@@ -329,6 +329,7 @@ const upsertDaily = async (supabase, userId, rows, batchSize = 500) => {
       revenue_total: r.revenue_total || 0,
       net_profit: r.net_profit || 0,
       roi: r.roi || 0,
+      cost_of_goods: r.cost_of_goods ?? null,
       raw: r.raw || null
     }));
 
