@@ -227,7 +227,7 @@ export default function Products() {
     },
     {
       key: 'unitsSelected',
-      label: `Units ${unitRangeLabel}`,
+      label: 'Units Sold',
       render: (val) => formatUnits(val, { dashOnZero: true, muted: unitRangeKey !== '30d' })
     },
     {
