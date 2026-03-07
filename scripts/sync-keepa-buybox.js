@@ -41,7 +41,7 @@ const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAIN
 // Un ASIN pe request pentru planul 1 token/min; ajustabil via KEEPA_BATCH_SIZE (dar limitat la 1 implicit).
 const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
-const defaultItemsPerRun = Math.max(1, Number(process.env.KEEPA_DEFAULT_ITEMS_PER_RUN || 200));
+const defaultItemsPerRun = Math.max(1, Number(process.env.KEEPA_DEFAULT_ITEMS_PER_RUN || 1000));
 const itemsPerRun = maxItems > 0 ? maxItems : defaultItemsPerRun;
 const maxRequestsRaw = Number(process.env.KEEPA_MAX_REQUESTS_PER_RUN || 60);
 const maxRequestsPerRun = maxRequestsRaw <= 0 ? Infinity : Math.max(1, maxRequestsRaw);
@@ -52,7 +52,7 @@ const maxRuntimeMs = Math.max(
 );
 const retryMaxMs = Math.max(10_000, Number(process.env.KEEPA_RETRY_MAX_MS || 120_000));
 const targetUserId = (process.env.SUPABASE_ADMIN_USER_ID || process.env.TARGET_USER_ID || "").trim();
-const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS === "1";
+const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS !== "0";
 
 let keyIndex = 0;
 
@@ -78,11 +78,11 @@ function buildDomainKey(userId, domain) {
   return `${userId}::${domain}`;
 }
 
-function dedupeByUserAsin(rows) {
+function dedupeProducts(rows) {
   const map = new Map();
   for (const row of rows) {
     if (!row?.user_id || !row?.asin) continue;
-    const key = `${row.user_id}::${row.asin}`;
+    const key = `${row.user_id}::${row.asin}::${row.marketplace || ""}`;
     if (!map.has(key)) {
       map.set(key, row);
     }
@@ -116,7 +116,7 @@ async function loadTargetProducts(limit) {
 
   const { data, error } = await query;
   if (error) throw error;
-  return dedupeByUserAsin(data || []);
+  return dedupeProducts(data || []);
 }
 
 async function loadUserIntegrationKeys(userIds) {
