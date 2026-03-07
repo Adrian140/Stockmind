@@ -172,6 +172,18 @@ function keepaPriceToDecimal(price) {
   return Number((price / 100).toFixed(2));
 }
 
+async function getTokenBalance(keepaKey) {
+  const params = new URLSearchParams({ key: keepaKey });
+  const url = `https://api.keepa.com/token?${params.toString()}`;
+  const res = await fetch(url, { method: "GET" });
+  if (!res.ok) return { tokensLeft: 0, refillIn: 60000 };
+  const json = await res.json().catch(() => ({}));
+  return {
+    tokensLeft: json.tokensLeft ?? 0,
+    refillIn: json.refillIn ? Number(json.refillIn) * 1000 : 60000
+  };
+}
+
 async function updateProductBuyBoxByAsin(userId, asin, updates) {
   if (!updates || Object.keys(updates).length === 0) return;
   const { error } = await supabase
@@ -214,6 +226,13 @@ async function run() {
     const keepaKey = integrationKeys.get(userId) || nextPoolKey();
     if (!keepaKey) {
       console.warn(`No Keepa key available for user=${userId}`);
+      continue;
+    }
+
+    const tokenBalance = await getTokenBalance(keepaKey);
+    if (tokenBalance.tokensLeft <= safetyRemaining) {
+      console.warn(`Tokens unavailable for user=${userId} domain=${domain}. tokensLeft=${tokenBalance.tokensLeft}, refillIn=${tokenBalance.refillIn}ms`);
+      stoppedForTokens = true;
       continue;
     }
 
