@@ -213,31 +213,37 @@ async function run() {
       if (!asins.length) continue;
 
       processed += batch.length;
-      try {
-        const keepaProducts = await fetchBuyBoxFromKeepa(keepaKey, domain, asins);
-        const productMap = new Map((keepaProducts || []).map((prod) => [prod.asin, prod]));
+      let done = false;
+      while (!done) {
+        try {
+          const keepaProducts = await fetchBuyBoxFromKeepa(keepaKey, domain, asins);
+          const productMap = new Map((keepaProducts || []).map((prod) => [prod.asin, prod]));
 
-        for (const product of batch) {
-          const keepaData = productMap.get(product.asin);
-          const priceSource = keepaData?.buyBoxPrice ?? keepaData?.stats?.buyBoxPrice;
-          const price = keepaPriceToDecimal(priceSource);
-          const updates = {};
-          if (price !== null) {
-            updates.bb_current = price;
-            updates.bb_avg_7d = price;
-            updates.bb_avg_30d = price;
+          for (const product of batch) {
+            const keepaData = productMap.get(product.asin);
+            const priceSource = keepaData?.buyBoxPrice ?? keepaData?.stats?.buyBoxPrice;
+            const price = keepaPriceToDecimal(priceSource);
+            const updates = {};
+            if (price !== null) {
+              updates.bb_current = price;
+              updates.bb_avg_7d = price;
+              updates.bb_avg_30d = price;
+            }
+            await updateProductBuyBoxByAsin(product.user_id, product.asin, updates);
+            if (updates.bb_current) updated += 1;
           }
-          await updateProductBuyBoxByAsin(product.user_id, product.asin, updates);
-          if (updates.bb_current) updated += 1;
+          done = true;
+        } catch (error) {
+          if (error.status === 429 || error.retryIn) {
+            const retryIn = error.retryIn || 60000;
+            console.warn(`Rate limit hit for user=${userId} domain=${domain}. Waiting ${retryIn}ms then retrying same batch...`);
+            await sleep(retryIn);
+            continue;
+          }
+          console.error(`Keepa buy box fetch failed for user=${userId} domain=${domain}:`, error.message);
+          failed += batch.length;
+          done = true;
         }
-      } catch (error) {
-        if (error.status === 429 || error.retryIn) {
-          console.warn(`Rate limit hit for user=${userId} domain=${domain}. Will stop and retry next run. retryIn=${error.retryIn || "60000"}ms`);
-          stoppedForTokens = true;
-          break;
-        }
-        console.error(`Keepa buy box fetch failed for user=${userId} domain=${domain}:`, error.message);
-        failed += batch.length;
       }
 
       if (delayMs > 0) {
