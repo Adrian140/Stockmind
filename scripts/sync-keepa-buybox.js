@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import fs from "node:fs/promises";
 
 const DOMAIN_MAP = {
   US: 1,
@@ -313,6 +314,17 @@ async function run() {
   }
 
   console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, Requests=${requestsUsed}, StoppedForTokens=${stoppedForTokens}`);
+
+  // Expune rezultate pentru GitHub Actions (pasul trebuie să aibă un id).
+  if (process.env.GITHUB_OUTPUT) {
+    const lines = [
+      `processed=${processed}`,
+      `updated=${updated}`,
+      `failed=${failed}`,
+      `stopped_for_tokens=${stoppedForTokens ? "true" : "false"}`
+    ];
+    await fs.appendFile(process.env.GITHUB_OUTPUT, lines.join("\n") + "\n");
+  }
 }
 
 (async () => {

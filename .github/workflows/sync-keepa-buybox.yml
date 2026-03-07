@@ -35,6 +35,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Keepa buy box sync
+        id: sync_keepa
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE }}
@@ -59,7 +60,7 @@ jobs:
           exit "$exit_code"
 
       - name: Relaunch immediately
-        if: ${{ success() }}
+        if: ${{ success() && steps.sync_keepa.outputs.stopped_for_tokens != 'true' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ github.token }}
