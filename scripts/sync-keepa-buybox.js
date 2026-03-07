@@ -47,6 +47,7 @@ const maxRuntimeMs = Math.max(
   60_000,
   Number(process.env.KEEPA_MAX_RUNTIME_MS || (290 * 60 * 1000))
 );
+const retryMaxMs = Math.max(10_000, Number(process.env.KEEPA_RETRY_MAX_MS || 120_000));
 const targetUserId = (process.env.SUPABASE_ADMIN_USER_ID || process.env.TARGET_USER_ID || "").trim();
 const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS === "1";
 
@@ -252,6 +253,12 @@ async function run() {
         } catch (error) {
           if (error.status === 429 || error.retryIn) {
             const retryIn = error.retryIn || 60000;
+            if (retryIn > retryMaxMs) {
+              console.warn(`Rate limit hit for user=${userId} domain=${domain}. retryIn=${retryIn}ms > retryMaxMs=${retryMaxMs}ms. Stopping run; will resume next launch.`);
+              stoppedForTokens = true;
+              done = true;
+              break;
+            }
             console.warn(`Rate limit hit for user=${userId} domain=${domain}. Waiting ${retryIn}ms then retrying same batch...`);
             await sleep(retryIn);
             continue;
