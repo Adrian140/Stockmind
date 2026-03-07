@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 360
     permissions:
       contents: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +62,7 @@ jobs:
         if: ${{ success() }}
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          github-token: ${{ github.token }}
           script: |
             const workflowId = 'sync-keepa-buybox.yml';
             const { data } = await github.rest.actions.listWorkflowRuns({
