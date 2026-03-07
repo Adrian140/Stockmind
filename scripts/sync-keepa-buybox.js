@@ -38,6 +38,7 @@ const keyPool = (process.env.KEEPA_API_KEYS || "")
 const tokensPerMinute = Math.max(1, Number(process.env.KEEPA_TOKENS_PER_MINUTE || 1));
 const delayMs = Math.floor(60000 / tokensPerMinute);
 const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAINING || 0));
+const maxWaitForTokenMs = Math.max(60_000, Number(process.env.KEEPA_MAX_WAIT_FOR_TOKEN_MS || 900_000)); // 15m default
 // Un ASIN pe request pentru planul 1 token/min; ajustabil via KEEPA_BATCH_SIZE (dar limitat la 1 implicit).
 const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
@@ -194,6 +195,13 @@ async function waitForTokenSlot(keepaKey, label) {
     const { tokensLeft, refillIn } = await getTokenBalance(keepaKey);
     if (tokensLeft > safetyRemaining) return tokensLeft;
     const waitMs = Math.max(refillIn || 60000, delayMs);
+    if (waitMs > maxWaitForTokenMs) {
+      const err = new Error(`No tokens for ${label || "keepaKey"}; wait ${waitMs}ms exceeds cap ${maxWaitForTokenMs}ms`);
+      err.status = 429;
+      err.retryIn = waitMs;
+      err.stopForTokens = true;
+      throw err;
+    }
     console.warn(`No tokens available${label ? ` for ${label}` : ""}. tokensLeft=${tokensLeft}, waiting ${waitMs}ms...`);
     await sleep(waitMs);
   }
@@ -283,6 +291,12 @@ async function run() {
           done = true;
         } catch (error) {
           if (error.status === 429 || error.retryIn) {
+            if (error.stopForTokens) {
+              console.warn(`Stopped waiting for tokens for user=${userId} domain=${domain}; wait exceeded cap (${maxWaitForTokenMs} ms).`);
+              stoppedForTokens = true;
+              done = true;
+              break;
+            }
             const retryIn = Math.max(error.retryIn || 60000, delayMs);
             console.warn(`Rate limit hit for user=${userId} domain=${domain}. Waiting ${retryIn}ms for tokens, then retrying same batch...`);
             await sleep(retryIn);
