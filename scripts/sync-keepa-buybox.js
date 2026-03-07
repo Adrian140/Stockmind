@@ -41,6 +41,8 @@ const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAIN
 // Un ASIN pe request pentru planul 1 token/min; ajustabil via KEEPA_BATCH_SIZE (dar limitat la 1 implicit).
 const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
+const defaultItemsPerRun = Math.max(1, Number(process.env.KEEPA_DEFAULT_ITEMS_PER_RUN || 200));
+const itemsPerRun = maxItems > 0 ? maxItems : defaultItemsPerRun;
 const maxRequestsRaw = Number(process.env.KEEPA_MAX_REQUESTS_PER_RUN || 60);
 const maxRequestsPerRun = maxRequestsRaw <= 0 ? Infinity : Math.max(1, maxRequestsRaw);
 // Oprim cu 10 minute înainte de limita de 5h a jobului GitHub Actions.
@@ -210,7 +212,7 @@ async function updateProductBuyBoxByAsin(userId, asin, updates) {
 async function run() {
   console.log("Starting Keepa buy box sync");
   const startTime = Date.now();
-  const candidates = await loadTargetProducts(batchSize);
+  const candidates = await loadTargetProducts(itemsPerRun);
   if (!candidates.length) {
     console.log("No products require Buy Box sync.");
     return;
@@ -234,7 +236,7 @@ async function run() {
   let requestsUsed = 0;
 
   for (const [key, items] of grouped.entries()) {
-    if (maxItems > 0 && processed >= maxItems) break;
+    if (itemsPerRun > 0 && processed >= itemsPerRun) break;
     const [userId, domain] = key.split("::");
     const keepaKey = integrationKeys.get(userId) || nextPoolKey();
     if (!keepaKey) {
@@ -251,7 +253,7 @@ async function run() {
 
     const batches = chunkArray(items, Math.min(batchSize, 100));
     for (const batch of batches) {
-      if ((maxItems > 0 && processed >= maxItems) || requestsUsed >= maxRequestsPerRun) break;
+      if ((itemsPerRun > 0 && processed >= itemsPerRun) || requestsUsed >= maxRequestsPerRun) break;
       if (Date.now() - startTime >= maxRuntimeMs) {
         console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
         stoppedForTokens = true;
