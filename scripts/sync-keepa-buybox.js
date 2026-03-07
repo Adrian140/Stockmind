@@ -160,6 +160,7 @@ async function fetchBuyBoxFromKeepa(keepaKey, domain, asins) {
   if (typeof json.tokensLeft === "number" && json.tokensLeft <= safetyRemaining) {
     const err = new Error(`Keepa tokens safety stop (${json.tokensLeft})`);
     err.retryIn = json.refillIn ? Number(json.refillIn) * 1000 : 60000;
+    err.status = 429;
     throw err;
   }
   return json.products || [];
@@ -182,6 +183,17 @@ async function getTokenBalance(keepaKey) {
     tokensLeft: json.tokensLeft ?? 0,
     refillIn: json.refillIn ? Number(json.refillIn) * 1000 : 60000
   };
+}
+
+async function waitForTokenSlot(keepaKey, label) {
+  // Ensure we only proceed when at least one token above safetyRemaining is available.
+  while (true) {
+    const { tokensLeft, refillIn } = await getTokenBalance(keepaKey);
+    if (tokensLeft > safetyRemaining) return tokensLeft;
+    const waitMs = Math.max(refillIn || 60000, delayMs);
+    console.warn(`No tokens available${label ? ` for ${label}` : ""}. tokensLeft=${tokensLeft}, waiting ${waitMs}ms...`);
+    await sleep(waitMs);
+  }
 }
 
 async function updateProductBuyBoxByAsin(userId, asin, updates) {
@@ -251,6 +263,7 @@ async function run() {
       let done = false;
       while (!done) {
         try {
+          await waitForTokenSlot(keepaKey, `user=${userId} domain=${domain}`);
           const keepaProducts = await fetchBuyBoxFromKeepa(keepaKey, domain, asins);
           requestsUsed += 1;
           const productMap = new Map((keepaProducts || []).map((prod) => [prod.asin, prod]));
@@ -271,14 +284,8 @@ async function run() {
           done = true;
         } catch (error) {
           if (error.status === 429 || error.retryIn) {
-            const retryIn = error.retryIn || 60000;
-            if (retryIn > retryMaxMs) {
-              console.warn(`Rate limit hit for user=${userId} domain=${domain}. retryIn=${retryIn}ms > retryMaxMs=${retryMaxMs}ms. Stopping run; will resume next launch.`);
-              stoppedForTokens = true;
-              done = true;
-              break;
-            }
-            console.warn(`Rate limit hit for user=${userId} domain=${domain}. Waiting ${retryIn}ms then retrying same batch...`);
+            const retryIn = Math.max(error.retryIn || 60000, delayMs);
+            console.warn(`Rate limit hit for user=${userId} domain=${domain}. Waiting ${retryIn}ms for tokens, then retrying same batch...`);
             await sleep(retryIn);
             continue;
           }
