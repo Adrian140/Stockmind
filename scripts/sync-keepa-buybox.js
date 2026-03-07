@@ -34,7 +34,7 @@ const keyPool = (process.env.KEEPA_API_KEYS || "")
   .map((k) => k.trim())
   .filter(Boolean);
 
-const tokensPerMinute = Math.max(1, Number(process.env.KEEPA_TOKENS_PER_MINUTE || 20));
+const tokensPerMinute = Math.max(1, Number(process.env.KEEPA_TOKENS_PER_MINUTE || 1));
 const delayMs = Math.floor(60000 / tokensPerMinute);
 const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAINING || 0));
 const batchSize = Math.min(100, Math.max(5, Number(process.env.KEEPA_BATCH_SIZE || 50)));
@@ -135,13 +135,23 @@ async function fetchBuyBoxFromKeepa(keepaKey, domain, asins) {
   });
   const url = `https://api.keepa.com/product?${params.toString()}`;
   const res = await fetch(url, { method: "GET" });
+  if (res.status === 429) {
+    const json = await res.json().catch(() => ({}));
+    const retryIn = json.refillIn ? Number(json.refillIn) * 1000 : 60000;
+    const err = new Error("Keepa rate limit");
+    err.retryIn = retryIn;
+    err.status = 429;
+    throw err;
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Keepa ${res.status}: ${text.slice(0, 200)}`);
   }
   const json = await res.json();
   if (typeof json.tokensLeft === "number" && json.tokensLeft <= safetyRemaining) {
-    throw new Error(`Keepa tokens safety stop (${json.tokensLeft})`);
+    const err = new Error(`Keepa tokens safety stop (${json.tokensLeft})`);
+    err.retryIn = json.refillIn ? Number(json.refillIn) * 1000 : 60000;
+    throw err;
   }
   return json.products || [];
 }
@@ -185,6 +195,7 @@ async function run() {
   let processed = 0;
   let updated = 0;
   let failed = 0;
+  let stoppedForTokens = false;
 
   for (const [key, items] of grouped.entries()) {
     if (maxItems > 0 && processed >= maxItems) break;
@@ -220,6 +231,11 @@ async function run() {
           if (updates.bb_current) updated += 1;
         }
       } catch (error) {
+        if (error.status === 429 || error.retryIn) {
+          console.warn(`Rate limit hit for user=${userId} domain=${domain}. Will stop and retry next run. retryIn=${error.retryIn || "60000"}ms`);
+          stoppedForTokens = true;
+          break;
+        }
         console.error(`Keepa buy box fetch failed for user=${userId} domain=${domain}:`, error.message);
         failed += batch.length;
       }
@@ -230,7 +246,7 @@ async function run() {
     }
   }
 
-  console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}`);
+  console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, StoppedForTokens=${stoppedForTokens}`);
 }
 
 (async () => {
