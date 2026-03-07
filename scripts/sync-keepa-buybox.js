@@ -244,12 +244,8 @@ async function run() {
       continue;
     }
 
-    const tokenBalance = await getTokenBalance(keepaKey);
-    if (tokenBalance.tokensLeft <= safetyRemaining) {
-      console.warn(`Tokens unavailable for user=${userId} domain=${domain}. tokensLeft=${tokenBalance.tokensLeft}, refillIn=${tokenBalance.refillIn}ms`);
-      stoppedForTokens = true;
-      continue;
-    }
+    // Așteaptă până avem cel puțin 1 token disponibil pentru acest key.
+    await waitForTokenSlot(keepaKey, `user=${userId} domain=${domain}`);
 
     const batches = chunkArray(items, Math.min(batchSize, 100));
     for (const batch of batches) {
