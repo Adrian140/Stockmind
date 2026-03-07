@@ -40,7 +40,8 @@ const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAIN
 // Un ASIN pe request pentru planul 1 token/min; ajustabil via KEEPA_BATCH_SIZE (dar limitat la 1 implicit).
 const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
-const maxRequestsPerRun = Math.max(1, Number(process.env.KEEPA_MAX_REQUESTS_PER_RUN || 60));
+const maxRequestsRaw = Number(process.env.KEEPA_MAX_REQUESTS_PER_RUN || 60);
+const maxRequestsPerRun = maxRequestsRaw <= 0 ? Infinity : Math.max(1, maxRequestsRaw);
 // Oprim cu 10 minute înainte de limita de 5h a jobului GitHub Actions.
 const maxRuntimeMs = Math.max(
   60_000,

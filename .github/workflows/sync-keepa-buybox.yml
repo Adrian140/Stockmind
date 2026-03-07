@@ -13,7 +13,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     permissions:
       contents: read
     steps:
@@ -40,8 +40,48 @@ jobs:
           KEEPA_API_KEYS: ${{ secrets.KEEPA_API_KEYS }}
           KEEPA_TOKENS_PER_MINUTE: ${{ secrets.KEEPA_TOKENS_PER_MINUTE || '1' }}
           KEEPA_TOKEN_SAFETY_REMAINING: ${{ secrets.KEEPA_TOKEN_SAFETY_REMAINING || '0' }}
-          KEEPA_BATCH_SIZE: ${{ secrets.KEEPA_BATCH_SIZE || '50' }}
+          KEEPA_BATCH_SIZE: ${{ secrets.KEEPA_BATCH_SIZE || '1' }}
           KEEPA_ITEMS_PER_RUN: ${{ secrets.KEEPA_ITEMS_PER_RUN || '0' }}
+          KEEPA_MAX_REQUESTS_PER_RUN: ${{ secrets.KEEPA_MAX_REQUESTS_PER_RUN || '60' }}
+          KEEPA_MAX_RUNTIME_MS: ${{ secrets.KEEPA_MAX_RUNTIME_MS || '17400000' }} # 4h50m
           SUPABASE_ADMIN_USER_ID: ${{ secrets.SUPABASE_ADMIN_USER_ID }}
           KEEPA_UPDATE_ALL_PRODUCTS: ${{ secrets.KEEPA_UPDATE_ALL_PRODUCTS || '0' }}
-        run: pnpm run sync-keepa-buybox
+        run: |
+          set +e
+          # 330m (5h30) guard; script are propria limită internă.
+          timeout --signal=TERM --kill-after=30s 330m pnpm run sync-keepa-buybox
+          exit_code=$?
+          if [ "$exit_code" -eq 124 ]; then
+            echo "Keepa BB sync at runtime guard; ending green for relaunch."
+            exit 0
+          fi
+          exit "$exit_code"
+
+      - name: Relaunch immediately
+        if: ${{ success() }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          script: |
+            const workflowId = 'sync-keepa-buybox.yml';
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflowId,
+              per_page: 5
+            });
+            const hasActive = (data.workflow_runs || []).some((r) =>
+              r.id !== context.runId &&
+              ['in_progress','queued','waiting','requested'].includes(r.status)
+            );
+            if (hasActive) {
+              core.info('Există deja un run activ/queued; nu relansăm.');
+              return;
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflowId,
+              ref: 'main'
+            });
+            core.info('Am trimis un nou run prin workflow_dispatch.');
