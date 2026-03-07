@@ -131,9 +131,7 @@ async function fetchBuyBoxFromKeepa(keepaKey, domain, asins) {
     domain: String(domainId),
     asin: asins.join(","),
     buybox: "1",
-    stats: "1",
-    history: "0",
-    offers: "0"
+    stats: "1"
   });
   const url = `https://api.keepa.com/product?${params.toString()}`;
   const res = await fetch(url, { method: "GET" });
