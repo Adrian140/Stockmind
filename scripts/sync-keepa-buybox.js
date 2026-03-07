@@ -41,6 +41,11 @@ const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAIN
 const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
 const maxRequestsPerRun = Math.max(1, Number(process.env.KEEPA_MAX_REQUESTS_PER_RUN || 60));
+// Oprim cu 10 minute înainte de limita de 5h a jobului GitHub Actions.
+const maxRuntimeMs = Math.max(
+  60_000,
+  Number(process.env.KEEPA_MAX_RUNTIME_MS || (290 * 60 * 1000))
+);
 const targetUserId = (process.env.SUPABASE_ADMIN_USER_ID || process.env.TARGET_USER_ID || "").trim();
 const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS === "1";
 
@@ -177,6 +182,7 @@ async function updateProductBuyBoxByAsin(userId, asin, updates) {
 
 async function run() {
   console.log("Starting Keepa buy box sync");
+  const startTime = Date.now();
   const candidates = await loadTargetProducts(batchSize);
   if (!candidates.length) {
     console.log("No products require Buy Box sync.");
@@ -212,6 +218,11 @@ async function run() {
     const batches = chunkArray(items, Math.min(batchSize, 100));
     for (const batch of batches) {
       if ((maxItems > 0 && processed >= maxItems) || requestsUsed >= maxRequestsPerRun) break;
+      if (Date.now() - startTime >= maxRuntimeMs) {
+        console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
+        stoppedForTokens = true;
+        break;
+      }
       const asins = batch.map((item) => item.asin).filter(Boolean);
       if (!asins.length) continue;
 
@@ -252,6 +263,12 @@ async function run() {
 
       if (requestsUsed >= maxRequestsPerRun) {
         console.log(`Reached max requests per run (${requestsUsed}/${maxRequestsPerRun}). Stopping to respect rate.`);
+        break;
+      }
+
+      if (Date.now() - startTime >= maxRuntimeMs) {
+        console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
+        stoppedForTokens = true;
         break;
       }
 
