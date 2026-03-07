@@ -37,8 +37,10 @@ const keyPool = (process.env.KEEPA_API_KEYS || "")
 const tokensPerMinute = Math.max(1, Number(process.env.KEEPA_TOKENS_PER_MINUTE || 1));
 const delayMs = Math.floor(60000 / tokensPerMinute);
 const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAINING || 0));
-const batchSize = Math.min(100, Math.max(5, Number(process.env.KEEPA_BATCH_SIZE || 50)));
+// Un ASIN pe request pentru planul 1 token/min; ajustabil via KEEPA_BATCH_SIZE (dar limitat la 1 implicit).
+const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
+const maxRequestsPerRun = Math.max(1, Number(process.env.KEEPA_MAX_REQUESTS_PER_RUN || 60));
 const targetUserId = (process.env.SUPABASE_ADMIN_USER_ID || process.env.TARGET_USER_ID || "").trim();
 const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS === "1";
 
@@ -196,6 +198,7 @@ async function run() {
   let updated = 0;
   let failed = 0;
   let stoppedForTokens = false;
+  let requestsUsed = 0;
 
   for (const [key, items] of grouped.entries()) {
     if (maxItems > 0 && processed >= maxItems) break;
@@ -208,7 +211,7 @@ async function run() {
 
     const batches = chunkArray(items, Math.min(batchSize, 100));
     for (const batch of batches) {
-      if (maxItems > 0 && processed >= maxItems) break;
+      if ((maxItems > 0 && processed >= maxItems) || requestsUsed >= maxRequestsPerRun) break;
       const asins = batch.map((item) => item.asin).filter(Boolean);
       if (!asins.length) continue;
 
@@ -217,6 +220,7 @@ async function run() {
       while (!done) {
         try {
           const keepaProducts = await fetchBuyBoxFromKeepa(keepaKey, domain, asins);
+          requestsUsed += 1;
           const productMap = new Map((keepaProducts || []).map((prod) => [prod.asin, prod]));
 
           for (const product of batch) {
@@ -246,13 +250,18 @@ async function run() {
         }
       }
 
-      if (delayMs > 0) {
+      if (requestsUsed >= maxRequestsPerRun) {
+        console.log(`Reached max requests per run (${requestsUsed}/${maxRequestsPerRun}). Stopping to respect rate.`);
+        break;
+      }
+
+      if (delayMs > 0 && requestsUsed < maxRequestsPerRun) {
         await sleep(delayMs);
       }
     }
   }
 
-  console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, StoppedForTokens=${stoppedForTokens}`);
+  console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, Requests=${requestsUsed}, StoppedForTokens=${stoppedForTokens}`);
 }
 
 (async () => {
