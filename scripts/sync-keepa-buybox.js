@@ -155,13 +155,13 @@ function keepaPriceToDecimal(price) {
   return Number((price / 100).toFixed(2));
 }
 
-async function updateProductBuyBox(productId, userId, updates) {
+async function updateProductBuyBoxByAsin(userId, asin, updates) {
   if (!updates || Object.keys(updates).length === 0) return;
   const { error } = await supabase
     .from("products")
     .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", productId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("asin", asin);
   if (error) throw error;
 }
 
@@ -218,7 +218,7 @@ async function run() {
             updates.bb_avg_7d = price;
             updates.bb_avg_30d = price;
           }
-          await updateProductBuyBox(product.id, product.user_id, updates);
+          await updateProductBuyBoxByAsin(product.user_id, product.asin, updates);
           if (updates.bb_current) updated += 1;
         }
       } catch (error) {
