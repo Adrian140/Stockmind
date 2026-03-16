@@ -41,6 +41,9 @@ jobs:
           print("ok:", data.get("ok"))
           print("imported:", data.get("imported"))
           print("marketplaces:", data.get("marketplaces"))
+          warnings = data.get("warnings") or []
+          if warnings:
+              print("warnings:", warnings)
           failures = data.get("failures") or []
           if failures:
               raise SystemExit(f"Sync has failures: {failures}")

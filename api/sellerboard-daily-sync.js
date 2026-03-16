@@ -352,6 +352,60 @@ const upsertDaily = async (supabase, userId, rows, batchSize = 500) => {
   return total;
 };
 
+const isStatementTimeoutError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("statement timeout") || message.includes("canceling statement due to statement timeout");
+};
+
+const refreshProductsFromDailyAdaptive = async (supabase, userId, skuList, warnings) => {
+  const configuredBatchSize = parseInt(process.env.SB_REFRESH_BATCH_SIZE || "50", 10);
+  const initialBatchSize = Math.max(10, Math.min(200, configuredBatchSize));
+
+  const refreshBatch = async (batch, batchIndex, depth = 0) => {
+    if (!batch.length) return;
+
+    const { error } = await supabase.rpc("refresh_products_from_daily_skus", {
+      p_user: userId,
+      p_skus: batch,
+      p_marketplace: null
+    });
+
+    if (!error) return;
+
+    if (isStatementTimeoutError(error) && batch.length > 1) {
+      const midpoint = Math.ceil(batch.length / 2);
+      warnings.push({
+        market: "REFRESH",
+        warning: "batch_split_after_timeout",
+        batch_size: batch.length,
+        batch_index: batchIndex,
+        depth
+      });
+      await refreshBatch(batch.slice(0, midpoint), batchIndex, depth + 1);
+      await refreshBatch(batch.slice(midpoint), batchIndex, depth + 1);
+      return;
+    }
+
+    if (isStatementTimeoutError(error)) {
+      warnings.push({
+        market: "REFRESH",
+        warning: error.message,
+        batch_size: batch.length,
+        batch_index: batchIndex,
+        depth
+      });
+      return;
+    }
+
+    throw error;
+  };
+
+  for (let i = 0; i < skuList.length; i += initialBatchSize) {
+    const batch = skuList.slice(i, i + initialBatchSize);
+    await refreshBatch(batch, Math.floor(i / initialBatchSize));
+  }
+};
+
 export default async function handler(req, res) {
   try {
     const userId = process.env.SUPABASE_ADMIN_USER_ID;
@@ -373,6 +427,7 @@ export default async function handler(req, res) {
     let mappableRowsTotal = 0;
     let latestRowsTotal = 0;
     const failures = [];
+    const warnings = [];
     const processed = [];
     const skuSet = new Set();
     for (const [market, url] of entries) {
@@ -482,20 +537,10 @@ export default async function handler(req, res) {
 
     if (imported > 0 && skuSet.size > 0) {
       const skuList = Array.from(skuSet);
-      const batchSize = Math.max(50, Math.min(500, parseInt(process.env.SB_REFRESH_BATCH_SIZE || "200", 10)));
-
-      for (let i = 0; i < skuList.length; i += batchSize) {
-        const batch = skuList.slice(i, i + batchSize);
-        const { error: refreshError } = await supabase.rpc("refresh_products_from_daily_skus", {
-          p_user: userId,
-          p_skus: batch,
-          p_marketplace: null
-        });
-
-        if (refreshError) {
-          failures.push({ market: "REFRESH", error: refreshError.message, batch_size: batch.length, batch_index: Math.floor(i / batchSize) });
-          break;
-        }
+      try {
+        await refreshProductsFromDailyAdaptive(supabase, userId, skuList, warnings);
+      } catch (refreshError) {
+        failures.push({ market: "REFRESH", error: refreshError.message });
       }
     }
 
@@ -543,7 +588,8 @@ export default async function handler(req, res) {
       mappable_rows_total: mappableRowsTotal,
       latest_rows_total: latestRowsTotal,
       processed,
-      failures
+      failures,
+      warnings
     });
   } catch (error) {
     console.error("Daily sync error:", error);
