@@ -305,18 +305,6 @@ async function run() {
   for (const [key, items] of grouped.entries()) {
     if (itemsPerRun > 0 && processed >= itemsPerRun) break;
     const [userId, domain] = key.split("::");
-    const selectedKey = await chooseKeepaKey({
-      userId,
-      integrationKey: integrationKeys.get(userId)
-    });
-    const keepaKey = selectedKey?.key || null;
-    if (!keepaKey) {
-      console.warn(`No Keepa key available for user=${userId}`);
-      continue;
-    }
-
-    // Așteaptă până avem cel puțin 1 token disponibil pentru acest key.
-    await waitForTokenSlot(keepaKey, `user=${userId} domain=${domain}`);
 
     const batches = chunkArray(items, Math.min(batchSize, 100));
     for (const batch of batches) {
@@ -333,6 +321,18 @@ async function run() {
       let done = false;
       while (!done) {
         try {
+          const selectedKey = await chooseKeepaKey({
+            userId,
+            integrationKey: integrationKeys.get(userId)
+          });
+          const keepaKey = selectedKey?.key || null;
+          if (!keepaKey) {
+            console.warn(`No Keepa key available for user=${userId}`);
+            failed += batch.length;
+            done = true;
+            break;
+          }
+
           await waitForTokenSlot(keepaKey, `user=${userId} domain=${domain}`);
           const keepaProducts = await fetchBuyBoxFromKeepa(keepaKey, domain, asins);
           requestsUsed += 1;
