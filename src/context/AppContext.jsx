@@ -86,6 +86,14 @@ export function AppProvider({ children }) {
     return [];
   }, [supabaseProducts]);
 
+  const isClearanceCandidate = React.useCallback((product) => {
+    return (
+      (product.units90d === 0 && product.stockQty > 0) ||
+      product.profitUnit < 0 ||
+      product.daysSinceLastSale > 30
+    );
+  }, []);
+
   const filteredProducts = useMemo(() => {
     const upper = (v) => (v || "").toUpperCase();
     let base = allProducts;
@@ -111,7 +119,11 @@ export function AppProvider({ children }) {
         bySku.set(key, {
           ...p,
           marketplace: "ALL",
-          sourceMarketplaces: new Set([upper(p.marketplace)])
+          sourceMarketplaces: new Set([upper(p.marketplace)]),
+          sourceProductIds: [p.id],
+          sourceStatuses: [p.status],
+          stockQty: p.stockQty || 0,
+          daysSinceLastSale: p.daysSinceLastSale || 0
         });
       } else {
         const agg = bySku.get(key);
@@ -122,12 +134,22 @@ export function AppProvider({ children }) {
         agg.revenue30d += p.revenue30d || 0;
         agg.profit30d += p.profit30d || 0;
         agg.stockQty += p.stockQty || 0;
+        agg.daysSinceLastSale = Math.max(agg.daysSinceLastSale || 0, p.daysSinceLastSale || 0);
+        agg.bbCurrent = Math.max(agg.bbCurrent || 0, p.bbCurrent || 0);
         agg.sourceMarketplaces.add(upper(p.marketplace));
+        agg.sourceProductIds.push(p.id);
+        agg.sourceStatuses.push(p.status);
       }
     }
 
     const aggregated = Array.from(bySku.values()).map((p) => ({
       ...p,
+      profitUnit: p.units30d > 0 ? p.profit30d / p.units30d : p.profitUnit,
+      status: p.sourceStatuses.includes("clearance")
+        ? "clearance"
+        : p.sourceStatuses.every((status) => status === "archived")
+          ? "archived"
+          : "active",
       sourceMarketplaces: Array.from(p.sourceMarketplaces)
     }));
 
@@ -153,12 +175,8 @@ export function AppProvider({ children }) {
   }, [filteredProducts]);
 
   const clearanceStock = useMemo(() => {
-    return filteredProducts.filter(p => 
-      (p.units90d === 0 && p.stockQty > 0) || 
-      p.profitUnit < 0 ||
-      p.daysSinceLastSale > 30
-    );
-  }, [filteredProducts]);
+    return filteredProducts.filter((p) => isClearanceCandidate(p) || p.status === "clearance" || p.status === "archived");
+  }, [filteredProducts, isClearanceCandidate]);
 
   const value = {
     selectedMarketplace,
@@ -178,7 +196,8 @@ export function AppProvider({ children }) {
     allProducts,
     loadingProducts,
     sellerboardLoading,
-    refreshProducts: loadSupabaseProducts
+    refreshProducts: loadSupabaseProducts,
+    isClearanceCandidate
   };
 
   return (

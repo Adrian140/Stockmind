@@ -10,6 +10,43 @@ class ProductsService {
     this.cacheDuration = 2 * 60 * 1000;
   }
 
+  buildProductMarketKey(sku, asin, marketplace) {
+    return `${String(sku || asin || "").trim()}::${String(marketplace || "").trim().toUpperCase()}`;
+  }
+
+  calculateDaysWithoutSale(dailyRows) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const byProduct = new Map();
+    for (const row of dailyRows || []) {
+      const key = this.buildProductMarketKey(row.sku, row.asin, row.marketplace);
+      if (!key || key === "::") continue;
+
+      const reportDate = new Date(row.report_date);
+      if (Number.isNaN(reportDate.getTime())) continue;
+      reportDate.setHours(0, 0, 0, 0);
+
+      const current = byProduct.get(key) || { firstSeen: null, lastSale: null };
+      if (!current.firstSeen || reportDate < current.firstSeen) {
+        current.firstSeen = reportDate;
+      }
+      if (Number(row.units_total) > 0 && (!current.lastSale || reportDate > current.lastSale)) {
+        current.lastSale = reportDate;
+      }
+      byProduct.set(key, current);
+    }
+
+    const result = new Map();
+    for (const [key, value] of byProduct.entries()) {
+      const anchorDate = value.lastSale || value.firstSeen;
+      if (!anchorDate) continue;
+      const diffDays = Math.max(0, Math.floor((today.getTime() - anchorDate.getTime()) / 86400000));
+      result.set(key, diffDays);
+    }
+    return result;
+  }
+
   normalizeImageUrl(value) {
     if (!value) return null;
     const trimmed = String(value).trim();
@@ -74,8 +111,31 @@ class ProductsService {
 
       const imageMap = new Map((imageData || []).map((row) => [row.asin, row.image_url]));
 
+      let sellerboardDailyRows = [];
+      let dailyFrom = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("sellerboard_daily")
+          .select("asin,sku,marketplace,report_date,units_total")
+          .eq("user_id", userId)
+          .order("report_date", { ascending: false })
+          .range(dailyFrom, dailyFrom + pageSize - 1);
+
+        if (error) {
+          console.error("❌ Error fetching sellerboard daily rows:", error);
+          break;
+        }
+
+        sellerboardDailyRows = sellerboardDailyRows.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        dailyFrom += pageSize;
+      }
+
+      const daysWithoutSaleMap = this.calculateDaysWithoutSale(sellerboardDailyRows);
+
       const products = (allData || []).map(p => ({
         id: p.id,
+        userId: p.user_id,
         asin: p.asin,
         sku: p.sku,
         title: p.title,
@@ -100,7 +160,7 @@ class ProductsService {
         volatility30d: parseFloat(p.volatility_30d) || 0,
         roi: parseFloat(p.roi) || 0,
         stockQty: p.stock_qty || 0,
-        daysSinceLastSale: p.days_since_last_sale || 0,
+        daysSinceLastSale: daysWithoutSaleMap.get(this.buildProductMarketKey(p.sku, p.asin, p.marketplace)) ?? p.days_since_last_sale ?? 0,
         peakMonths: p.peak_months || [],
         salesHistory: []
       }));

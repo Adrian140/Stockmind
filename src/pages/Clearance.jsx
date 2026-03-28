@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertTriangle, Package, Clock, TrendingDown, Check, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Package, TrendingDown, Check, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { productsService } from '../services/products.service';
 import DataTable from '../components/ui/DataTable';
 import Badge from '../components/ui/Badge';
 
@@ -12,37 +13,55 @@ const workflowLabels = {
   cleared: 'Cleared'
 };
 
+function mapWorkflowState(status) {
+  if (status === 'clearance') return 'in_clearance';
+  if (status === 'archived') return 'cleared';
+  return 'proposed';
+}
+
+function mapProductStatus(workflowState) {
+  if (workflowState === 'in_clearance') return 'clearance';
+  if (workflowState === 'cleared') return 'archived';
+  return 'active';
+}
+
 export default function Clearance() {
-  const { clearanceStock, filteredProducts } = useApp();
+  const { clearanceStock, refreshProducts } = useApp();
   const [statusFilter, setStatusFilter] = useState('all');
-  const [productStates, setProductStates] = useState({});
+  const [pendingIds, setPendingIds] = useState([]);
 
-  const getProductState = (id) => productStates[id] || 'proposed';
-  const advanceState = (id) => {
-    const currentState = getProductState(id);
-    const currentIdx = workflowStates.indexOf(currentState);
-    if (currentIdx < workflowStates.length - 1) {
-      setProductStates(prev => ({
-        ...prev,
-        [id]: workflowStates[currentIdx + 1]
-      }));
-    }
-  };
+  const displayProducts = useMemo(() => {
+    return clearanceStock.filter((product) => {
+      if (statusFilter === 'all') return true;
+      return mapWorkflowState(product.status) === statusFilter;
+    });
+  }, [clearanceStock, statusFilter]);
 
-  const displayProducts = clearanceStock.filter(p => {
-    if (statusFilter === 'all') return true;
-    return getProductState(p.id) === statusFilter;
-  });
+  const stateCounts = useMemo(() => ({
+    proposed: clearanceStock.filter((product) => mapWorkflowState(product.status) === 'proposed').length,
+    in_clearance: clearanceStock.filter((product) => mapWorkflowState(product.status) === 'in_clearance').length,
+    cleared: clearanceStock.filter((product) => mapWorkflowState(product.status) === 'cleared').length
+  }), [clearanceStock]);
 
   const getSuggestedExitPrice = (product) => {
     const discount = product.daysSinceLastSale > 60 ? 0.4 : product.daysSinceLastSale > 30 ? 0.25 : 0.15;
     return product.bbCurrent * (1 - discount);
   };
 
-  const stateCounts = {
-    proposed: clearanceStock.filter(p => getProductState(p.id) === 'proposed').length,
-    in_clearance: clearanceStock.filter(p => getProductState(p.id) === 'in_clearance').length,
-    cleared: clearanceStock.filter(p => getProductState(p.id) === 'cleared').length
+  const updateWorkflowState = async (row, nextState) => {
+    const ids = Array.isArray(row.sourceProductIds) && row.sourceProductIds.length > 0 ? row.sourceProductIds : [row.id];
+    const userId = row.userId;
+    if (!userId) return;
+
+    setPendingIds((current) => [...current, ...ids]);
+    try {
+      await Promise.all(ids.map((productId) =>
+        productsService.updateProduct(productId, userId, { status: mapProductStatus(nextState) })
+      ));
+      await refreshProducts();
+    } finally {
+      setPendingIds((current) => current.filter((id) => !ids.includes(id)));
+    }
   };
 
   const columns = [
@@ -65,7 +84,7 @@ export default function Clearance() {
       render: (val) => (
         <div className="flex items-center gap-2">
           <Package className="w-4 h-4 text-slate-400" />
-          <span className="font-mono">{val}</span>
+          <span className="font-mono">{val || 0}</span>
         </div>
       )
     },
@@ -74,7 +93,7 @@ export default function Clearance() {
       label: 'Days No Sale',
       render: (val) => (
         <Badge variant={val > 60 ? 'danger' : val > 30 ? 'warning' : 'neutral'}>
-          {val} days
+          {val || 0} days
         </Badge>
       )
     },
@@ -83,14 +102,14 @@ export default function Clearance() {
       label: 'Profit/Unit',
       render: (val) => (
         <span className={`font-mono ${val >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-          €{val.toFixed(2)}
+          €{Number(val || 0).toFixed(2)}
         </span>
       )
     },
     {
       key: 'bbCurrent',
       label: 'Current Price',
-      render: (val) => <span className="font-mono">€{val.toFixed(2)}</span>
+      render: (val) => <span className="font-mono">€{Number(val || 0).toFixed(2)}</span>
     },
     {
       key: 'exitPrice',
@@ -103,7 +122,7 @@ export default function Clearance() {
       key: 'state',
       label: 'Status',
       render: (_, row) => {
-        const state = getProductState(row.id);
+        const state = mapWorkflowState(row.status);
         return (
           <Badge variant={state === 'cleared' ? 'success' : state === 'in_clearance' ? 'warning' : 'danger'}>
             {workflowLabels[state]}
@@ -116,15 +135,20 @@ export default function Clearance() {
       label: '',
       sortable: false,
       render: (_, row) => {
-        const state = getProductState(row.id);
+        const state = mapWorkflowState(row.status);
         if (state === 'cleared') return null;
+
+        const nextState = state === 'proposed' ? 'in_clearance' : 'cleared';
+        const isPending = pendingIds.includes(row.id) || (Array.isArray(row.sourceProductIds) && row.sourceProductIds.some((id) => pendingIds.includes(id)));
+
         return (
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
-              advanceState(row.id);
+              updateWorkflowState(row, nextState);
             }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dashboard-hover text-slate-300 hover:bg-amazon-orange hover:text-white transition-colors text-lg font-light"
+            disabled={isPending}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dashboard-hover text-slate-300 hover:bg-amazon-orange hover:text-white transition-colors text-lg font-light disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {state === 'proposed' ? 'Start Clearance' : 'Mark Cleared'}
             <ArrowRight className="w-4 h-4" />
@@ -170,7 +194,7 @@ export default function Clearance() {
             <h3 className="text-xl font-medium text-white">In Clearance</h3>
           </div>
           <p className="text-4xl font-mono text-yellow-400">{stateCounts.in_clearance}</p>
-          <p className="text-lg font-light text-slate-400 mt-1">Price reduced</p>
+          <p className="text-lg font-light text-slate-400 mt-1">Persisted in products.status</p>
         </motion.div>
 
         <motion.div
@@ -184,13 +208,13 @@ export default function Clearance() {
             <h3 className="text-xl font-medium text-white">Cleared</h3>
           </div>
           <p className="text-4xl font-mono text-green-400">{stateCounts.cleared}</p>
-          <p className="text-lg font-light text-slate-400 mt-1">Stock resolved</p>
+          <p className="text-lg font-light text-slate-400 mt-1">Archived from clearance queue</p>
         </motion.div>
       </div>
 
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1 bg-dashboard-card rounded-lg p-1 border border-dashboard-border">
-          {['all', ...workflowStates].map(state => (
+          {['all', ...workflowStates].map((state) => (
             <button
               key={state}
               onClick={() => setStatusFilter(state)}
@@ -209,8 +233,8 @@ export default function Clearance() {
         </div>
       </div>
 
-      <DataTable 
-        columns={columns} 
+      <DataTable
+        columns={columns}
         data={displayProducts}
         defaultSortKey="daysSinceLastSale"
         emptyMessage="No products in clearance status."
@@ -229,7 +253,7 @@ export default function Clearance() {
               <p className="text-lg font-medium text-white">30-60 days no sales</p>
             </div>
             <p className="text-lg font-light text-slate-400">
-              Consider 15-25% price reduction. Monitor competitor pricing.
+              Consider 15-25% price reduction. Candidate status is based on real Sellerboard daily history.
             </p>
           </div>
           <div>
@@ -238,16 +262,16 @@ export default function Clearance() {
               <p className="text-lg font-medium text-white">60-90 days no sales</p>
             </div>
             <p className="text-lg font-light text-slate-400">
-              Apply 25-40% discount. Consider bundling or FBA removal.
+              Use stronger discounting. Workflow state now persists in the `products` table.
             </p>
           </div>
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="w-3 h-3 rounded-full bg-red-400" />
-              <p className="text-lg font-medium text-white">90+ days no sales</p>
+              <p className="text-lg font-medium text-white">Negative profit or stale demand</p>
             </div>
             <p className="text-lg font-light text-slate-400">
-              Aggressive pricing or removal. Calculate storage fees vs loss.
+              Products are proposed when they have negative unit profit or exceed the no-sale threshold.
             </p>
           </div>
         </div>
