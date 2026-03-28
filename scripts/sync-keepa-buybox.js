@@ -183,6 +183,17 @@ function keepaPriceToDecimal(price) {
   return Number((price / 100).toFixed(2));
 }
 
+function getKeepaBuyBoxTotal(keepaData) {
+  const basePriceRaw = keepaData?.buyBoxPrice ?? keepaData?.stats?.buyBoxPrice;
+  const shippingRaw = keepaData?.buyBoxShipping;
+
+  const basePrice = keepaPriceToDecimal(basePriceRaw);
+  if (basePrice === null) return null;
+
+  const shipping = keepaPriceToDecimal(shippingRaw) ?? 0;
+  return Number((basePrice + shipping).toFixed(2));
+}
+
 async function getTokenBalance(keepaKey) {
   const params = new URLSearchParams({ key: keepaKey });
   const url = `https://api.keepa.com/token?${params.toString()}`;
@@ -254,13 +265,14 @@ async function waitForTokenSlot(keepaKey, label) {
   }
 }
 
-async function updateProductBuyBoxByAsin(userId, asin, updates) {
+async function updateProductBuyBoxByAsin(userId, asin, marketplace, updates) {
   if (!updates || Object.keys(updates).length === 0) return;
   const { error } = await supabase
     .from("products")
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq("user_id", userId)
-    .eq("asin", asin);
+    .eq("asin", asin)
+    .eq("marketplace", marketplace);
   if (error) throw error;
 }
 
@@ -328,15 +340,14 @@ async function run() {
 
           for (const product of batch) {
             const keepaData = productMap.get(product.asin);
-            const priceSource = keepaData?.buyBoxPrice ?? keepaData?.stats?.buyBoxPrice;
-            const price = keepaPriceToDecimal(priceSource);
+            const price = getKeepaBuyBoxTotal(keepaData);
             const updates = {};
             if (price !== null) {
               updates.bb_current = price;
               updates.bb_avg_7d = price;
               updates.bb_avg_30d = price;
             }
-            await updateProductBuyBoxByAsin(product.user_id, product.asin, updates);
+            await updateProductBuyBoxByAsin(product.user_id, product.asin, product.marketplace, updates);
             if (updates.bb_current) updated += 1;
           }
           done = true;
