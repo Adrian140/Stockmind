@@ -387,6 +387,8 @@ export default function Products() {
         onRowClick={setSelectedProduct}
         emptyMessage="No products found matching your criteria."
         loading={rangeLoading}
+        stickyHeader
+        maxHeightClass="max-h-[calc(100vh-280px)]"
       />
 
       <AnimatePresence>

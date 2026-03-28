@@ -11,7 +11,9 @@ export default function DataTable({
   defaultSortDir = 'desc',
   emptyMessage = 'No data available',
   pageSize = 50,
-  loading = false
+  loading = false,
+  stickyHeader = false,
+  maxHeightClass = ''
 }) {
   const [sortKey, setSortKey] = useState(defaultSortKey || columns[0]?.key);
   const [sortDir, setSortDir] = useState(defaultSortDir);
@@ -49,18 +51,23 @@ export default function DataTable({
   const startIdx = (safePage - 1) * pageSize;
   const endIdx = startIdx + pageSize;
   const pagedData = sortedData.slice(startIdx, endIdx);
+  const tableScrollClass = clsx(
+    'overflow-x-auto custom-scrollbar',
+    stickyHeader ? ['overflow-y-auto', maxHeightClass || 'max-h-[70vh]'] : 'overflow-y-visible'
+  );
+  const headerCellClass = 'bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85';
 
   if (loading) {
     return (
-      <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-visible">
-        <div className="overflow-x-auto overflow-y-visible custom-scrollbar">
+      <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-hidden">
+        <div className={tableScrollClass}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-dashboard-border bg-dashboard-bg/50">
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className="sticky top-0 z-20 bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85"
+                    className={clsx(stickyHeader && 'sticky top-0 z-20', headerCellClass)}
                   >
                     {col.label}
                   </th>
@@ -93,8 +100,8 @@ export default function DataTable({
   }
 
   return (
-    <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-visible">
-      <div className="overflow-x-auto overflow-y-visible custom-scrollbar">
+    <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-hidden">
+      <div className={tableScrollClass}>
         <table className="w-full">
           <thead>
             <tr className="border-b border-dashboard-border bg-dashboard-bg/50">
@@ -102,7 +109,8 @@ export default function DataTable({
                 <th
                   key={col.key}
                   className={clsx(
-                    'sticky top-0 z-20 bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85',
+                    stickyHeader && 'sticky top-0 z-20',
+                    headerCellClass,
                     col.sortable !== false && 'cursor-pointer hover:text-white transition-colors'
                   )}
                   onClick={() => col.sortable !== false && handleSort(col.key)}
