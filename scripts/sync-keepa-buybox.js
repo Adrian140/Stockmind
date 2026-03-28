@@ -346,6 +346,13 @@ async function run() {
               return;
             }
             const retryIn = Math.max(error.retryIn || 60000, delayMs);
+            if (retryIn > maxWaitForTokenMs) {
+              console.warn(
+                `Skipping key for current run user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}; retryIn ${retryIn}ms exceeds cap ${maxWaitForTokenMs}ms.`
+              );
+              stoppedForTokens = true;
+              return;
+            }
             console.warn(
               `Rate limit hit for user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}. Waiting ${retryIn}ms for tokens, then retrying same batch...`
             );
