@@ -52,8 +52,8 @@ export default function DataTable({
 
   if (loading) {
     return (
-      <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
+      <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-visible">
+        <div className="overflow-x-auto overflow-y-visible custom-scrollbar">
           <table className="w-full">
             <thead>
               <tr className="border-b border-dashboard-border bg-dashboard-bg/50">
@@ -93,8 +93,8 @@ export default function DataTable({
   }
 
   return (
-    <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-hidden">
-      <div className="overflow-x-auto custom-scrollbar">
+    <div className="bg-dashboard-card rounded-xl border border-dashboard-border overflow-visible">
+      <div className="overflow-x-auto overflow-y-visible custom-scrollbar">
         <table className="w-full">
           <thead>
             <tr className="border-b border-dashboard-border bg-dashboard-bg/50">
