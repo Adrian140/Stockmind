@@ -60,7 +60,7 @@ export default function DataTable({
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className="sticky top-16 z-20 bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85"
+                    className="sticky top-0 z-20 bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85"
                   >
                     {col.label}
                   </th>
@@ -102,7 +102,7 @@ export default function DataTable({
                 <th
                   key={col.key}
                   className={clsx(
-                    'sticky top-16 z-20 bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85',
+                    'sticky top-0 z-20 bg-dashboard-bg/95 px-4 py-3 text-left text-lg font-light text-slate-400 whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-dashboard-bg/85',
                     col.sortable !== false && 'cursor-pointer hover:text-white transition-colors'
                   )}
                   onClick={() => col.sortable !== false && handleSort(col.key)}
