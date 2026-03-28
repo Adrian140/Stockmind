@@ -68,6 +68,24 @@ class ProductsService {
     return trimmed.replace(/^"+|"+$/g, "") || null;
   }
 
+  async fetchAllRows(queryBuilderFactory, pageSize = 1000) {
+    let allRows = [];
+    let from = 0;
+
+    while (true) {
+      const { data, error } = await queryBuilderFactory()
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+
+      allRows = allRows.concat(data || []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allRows;
+  }
+
   async getAllProducts(userId) {
     try {
       if (!userId) {
@@ -84,52 +102,46 @@ class ProductsService {
       console.log("🔄 Fetching products from Supabase for user:", userId);
 
       const pageSize = 1000;
-      let allData = [];
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
+      const allData = await this.fetchAllRows(
+        () => supabase
           .from("products")
           .select("*")
           .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .range(from, from + pageSize - 1);
+          .order("created_at", { ascending: false }),
+        pageSize
+      );
 
-        if (error) {
-          console.error("❌ Error fetching products:", error);
-          throw error;
-        }
+      const [imageData, sellerboardDailyRows] = await Promise.all([
+        (async () => {
+          const { data, error } = await supabase
+            .from("asin_images")
+            .select("asin,image_url")
+            .eq("user_id", userId);
 
-        allData = allData.concat(data || []);
-        if (!data || data.length < pageSize) break;
-        from += pageSize;
-      }
-
-      const { data: imageData } = await supabase
-        .from("asin_images")
-        .select("asin,image_url")
-        .eq("user_id", userId);
+          if (error) {
+            console.error("❌ Error fetching asin images:", error);
+            return [];
+          }
+          return data || [];
+        })(),
+        (async () => {
+          try {
+            return await this.fetchAllRows(
+              () => supabase
+                .from("sellerboard_daily")
+                .select("asin,sku,marketplace,report_date,units_total")
+                .eq("user_id", userId)
+                .order("report_date", { ascending: false }),
+              pageSize
+            );
+          } catch (error) {
+            console.error("❌ Error fetching sellerboard daily rows:", error);
+            return [];
+          }
+        })()
+      ]);
 
       const imageMap = new Map((imageData || []).map((row) => [row.asin, row.image_url]));
-
-      let sellerboardDailyRows = [];
-      let dailyFrom = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from("sellerboard_daily")
-          .select("asin,sku,marketplace,report_date,units_total")
-          .eq("user_id", userId)
-          .order("report_date", { ascending: false })
-          .range(dailyFrom, dailyFrom + pageSize - 1);
-
-        if (error) {
-          console.error("❌ Error fetching sellerboard daily rows:", error);
-          break;
-        }
-
-        sellerboardDailyRows = sellerboardDailyRows.concat(data || []);
-        if (!data || data.length < pageSize) break;
-        dailyFrom += pageSize;
-      }
 
       const daysWithoutSaleMap = this.calculateDaysWithoutSale(sellerboardDailyRows);
 

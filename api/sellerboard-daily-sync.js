@@ -237,7 +237,7 @@ const DAILY_URLS = {
   UK: process.env.SELLERBOARD_DAILY_URL_UK
 };
 
-const STOCK_URL = process.env.SELLERBOARD_STOCK_URL;
+const STOCK_URL = process.env.SELLERBOARD_STOCK_URL || process.env.VITE_SELLERBOARD_STOCK_URL;
 
 const parseMarketplaceUrlMap = (raw) => {
   if (!raw || typeof raw !== "string") return [];

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertTriangle, Package, TrendingDown, Check, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Package, TrendingDown, Check, ArrowRight, LoaderCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { productsService } from '../services/products.service';
 import DataTable from '../components/ui/DataTable';
@@ -26,7 +26,7 @@ function mapProductStatus(workflowState) {
 }
 
 export default function Clearance() {
-  const { clearanceStock, refreshProducts } = useApp();
+  const { clearanceStock, refreshProducts, loadingProducts } = useApp();
   const [statusFilter, setStatusFilter] = useState('all');
   const [pendingIds, setPendingIds] = useState([]);
 
@@ -235,9 +235,16 @@ export default function Clearance() {
 
       <DataTable
         columns={columns}
-        data={displayProducts}
+        data={loadingProducts ? [] : displayProducts}
         defaultSortKey="daysSinceLastSale"
-        emptyMessage="No products in clearance status."
+        emptyMessage={
+          loadingProducts ? (
+            <div className="flex min-h-[120px] items-center justify-center gap-3 text-slate-400">
+              <LoaderCircle className="h-5 w-5 animate-spin text-amazon-orange" />
+              <span>Se încarcă produsele și stocurile Sellerboard...</span>
+            </div>
+          ) : "No products in clearance status."
+        }
       />
 
       <motion.div
