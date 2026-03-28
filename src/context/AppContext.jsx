@@ -137,7 +137,8 @@ export function AppProvider({ children }) {
         agg.revenue30d += p.revenue30d || 0;
         agg.profit30d += p.profit30d || 0;
         agg.stockQty += p.stockQty || 0;
-        agg.daysSinceLastSale = Math.max(agg.daysSinceLastSale || 0, p.daysSinceLastSale || 0);
+        // In "All Markets", show the most recent sale across all marketplaces.
+        agg.daysSinceLastSale = Math.min(agg.daysSinceLastSale || 0, p.daysSinceLastSale || 0);
         agg.bbCurrent = Math.max(agg.bbCurrent || 0, p.bbCurrent || 0);
         agg.sourceMarketplaces.add(upper(p.marketplace));
         agg.sourceProductIds.push(p.id);
