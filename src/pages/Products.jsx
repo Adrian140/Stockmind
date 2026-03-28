@@ -295,15 +295,6 @@ export default function Products() {
 
   return (
     <div id="products-page" className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-medium text-white">Products</h1>
-          <p className="text-lg font-light text-slate-400 mt-1">
-            {displayProducts.length} products • Extended analytics view
-          </p>
-        </div>
-      </div>
-
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />

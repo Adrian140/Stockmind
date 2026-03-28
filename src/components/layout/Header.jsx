@@ -28,8 +28,8 @@ export default function Header() {
 
   return (
     <header id="header" className="sticky top-0 z-50 bg-dashboard-card border-b border-dashboard-border">
-      <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
+      <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-8 min-w-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amazon-orange to-orange-600 flex items-center justify-center">
               <span className="text-xl font-bold text-white">A</span>
@@ -40,7 +40,7 @@ export default function Header() {
             </div>
           </div>
 
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-1 min-w-0 flex-wrap">
             {navItems.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
@@ -59,12 +59,12 @@ export default function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="relative">
+        <div className="flex items-center gap-3 min-w-0 shrink-0">
+          <div className="relative min-w-0">
             <select
               value={selectedMarketplace}
               onChange={(e) => setSelectedMarketplace(e.target.value)}
-              className="appearance-none bg-dashboard-bg border border-dashboard-border rounded-lg px-4 py-2 pr-10 text-lg font-light text-white focus:outline-none focus:border-amazon-orange cursor-pointer"
+              className="appearance-none bg-dashboard-bg border border-dashboard-border rounded-lg px-4 py-2 pr-10 text-lg font-light text-white focus:outline-none focus:border-amazon-orange cursor-pointer max-w-[220px]"
             >
               <option value="all">All Markets</option>
               {marketplaces.map(mp => (
@@ -74,11 +74,11 @@ export default function Header() {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
 
-          <div className="relative">
+          <div className="relative min-w-0">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="appearance-none bg-dashboard-bg border border-dashboard-border rounded-lg px-4 py-2 pr-10 text-lg font-light text-white focus:outline-none focus:border-amazon-orange cursor-pointer"
+              className="appearance-none bg-dashboard-bg border border-dashboard-border rounded-lg px-4 py-2 pr-10 text-lg font-light text-white focus:outline-none focus:border-amazon-orange cursor-pointer max-w-[220px]"
             >
               {categories.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -95,7 +95,7 @@ export default function Header() {
           </button>
 
           {user && (
-            <div className="pl-4 border-l border-dashboard-border">
+            <div className="pl-3 border-l border-dashboard-border shrink-0">
               <button
                 onClick={signOut}
                 className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-dashboard-hover transition-colors"
