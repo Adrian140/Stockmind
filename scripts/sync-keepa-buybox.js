@@ -68,6 +68,12 @@ function nextPoolKey() {
   return key;
 }
 
+function maskKeepaKey(key) {
+  if (!key) return "none";
+  if (key.length <= 8) return "***";
+  return `${key.slice(0, 4)}...${key.slice(-4)}`;
+}
+
 function resolveDomain(marketplace) {
   const code = (marketplace || "").toUpperCase();
   if (DOMAIN_MAP[code]) return code;
@@ -189,6 +195,47 @@ async function getTokenBalance(keepaKey) {
   };
 }
 
+async function chooseKeepaKey({ userId, integrationKey }) {
+  const candidates = [];
+  const seen = new Set();
+
+  if (integrationKey && !seen.has(integrationKey)) {
+    candidates.push({ key: integrationKey, source: "integration" });
+    seen.add(integrationKey);
+  }
+
+  for (let i = 0; i < keyPool.length; i += 1) {
+    const key = nextPoolKey();
+    if (!key || seen.has(key)) continue;
+    candidates.push({ key, source: "pool" });
+    seen.add(key);
+  }
+
+  if (!candidates.length) return null;
+
+  let best = null;
+  for (const candidate of candidates) {
+    const balance = await getTokenBalance(candidate.key);
+    const evaluated = { ...candidate, ...balance };
+    if (evaluated.tokensLeft > safetyRemaining) {
+      console.log(
+        `Using Keepa key source=${evaluated.source} user=${userId} key=${maskKeepaKey(evaluated.key)} tokensLeft=${evaluated.tokensLeft}`
+      );
+      return evaluated;
+    }
+    if (!best || evaluated.refillIn < best.refillIn) {
+      best = evaluated;
+    }
+  }
+
+  if (best) {
+    console.warn(
+      `No Keepa key currently has tokens for user=${userId}. Best source=${best.source} key=${maskKeepaKey(best.key)} refillIn=${best.refillIn}ms`
+    );
+  }
+  return best;
+}
+
 async function waitForTokenSlot(keepaKey, label) {
   // Ensure we only proceed when at least one token above safetyRemaining is available.
   while (true) {
@@ -246,7 +293,11 @@ async function run() {
   for (const [key, items] of grouped.entries()) {
     if (itemsPerRun > 0 && processed >= itemsPerRun) break;
     const [userId, domain] = key.split("::");
-    const keepaKey = integrationKeys.get(userId) || nextPoolKey();
+    const selectedKey = await chooseKeepaKey({
+      userId,
+      integrationKey: integrationKeys.get(userId)
+    });
+    const keepaKey = selectedKey?.key || null;
     if (!keepaKey) {
       console.warn(`No Keepa key available for user=${userId}`);
       continue;
