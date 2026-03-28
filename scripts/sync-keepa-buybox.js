@@ -68,6 +68,17 @@ function nextPoolKey() {
   return key;
 }
 
+function getRotatedPoolKeys() {
+  if (!keyPool.length) return [];
+  const startIndex = keyIndex % keyPool.length;
+  const rotated = [];
+  for (let i = 0; i < keyPool.length; i += 1) {
+    rotated.push(keyPool[(startIndex + i) % keyPool.length]);
+  }
+  keyIndex = (startIndex + 1) % keyPool.length;
+  return rotated;
+}
+
 function maskKeepaKey(key) {
   if (!key) return "none";
   if (key.length <= 8) return "***";
@@ -215,8 +226,7 @@ async function chooseKeepaKey({ userId, integrationKey }) {
     seen.add(integrationKey);
   }
 
-  for (let i = 0; i < keyPool.length; i += 1) {
-    const key = nextPoolKey();
+  for (const key of getRotatedPoolKeys()) {
     if (!key || seen.has(key)) continue;
     candidates.push({ key, source: "pool" });
     seen.add(key);
