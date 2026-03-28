@@ -88,9 +88,12 @@ export function AppProvider({ children }) {
 
   const isClearanceCandidate = React.useCallback((product) => {
     return (
-      (product.units90d === 0 && product.stockQty > 0) ||
-      product.profitUnit < 0 ||
-      product.daysSinceLastSale > 30
+      product.stockQty > 0 &&
+      (
+        product.units90d === 0 ||
+        product.profitUnit < 0 ||
+        product.daysSinceLastSale > 30
+      )
     );
   }, []);
 

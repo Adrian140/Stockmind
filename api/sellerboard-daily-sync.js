@@ -237,6 +237,8 @@ const DAILY_URLS = {
   UK: process.env.SELLERBOARD_DAILY_URL_UK
 };
 
+const STOCK_URL = process.env.SELLERBOARD_STOCK_URL;
+
 const parseMarketplaceUrlMap = (raw) => {
   if (!raw || typeof raw !== "string") return [];
   const trimmed = raw.trim();
@@ -306,6 +308,99 @@ const dedupeRows = (rows) => {
   }
   return Array.from(map.values());
 };
+
+function getField(row, variants) {
+  for (const key of variants) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
+      return row[key];
+    }
+  }
+  return null;
+}
+
+function mapCSVToStockRows(csvData) {
+  const rows = [];
+
+  for (const row of csvData) {
+    const asin = getField(row, ["ASIN", "asin", "Asin"]) || "";
+    const sku = getField(row, ["SKU", "sku", "Sku", "SellerSKU", "Seller SKU"]) || "";
+    const marketplaceRaw = getField(row, ["Marketplace", "marketplace", "Country", "country", "Market"]);
+    const marketplace = mapMarketplace(marketplaceRaw);
+    const quantity = parseNumber(
+      getField(row, [
+        "Available",
+        "available",
+        "Qty",
+        "qty",
+        "Quantity",
+        "quantity",
+        "Stock",
+        "stock",
+        "Inventory",
+        "inventory",
+        "Total stock",
+        "Total Stock",
+        "Available stock",
+        "Available Stock",
+        "FBA available",
+        "FBA Available",
+        "Your available qty",
+        "Your Available Qty"
+      ])
+    );
+
+    if (!sku && !asin) continue;
+
+    rows.push({
+      asin,
+      sku,
+      marketplace,
+      stock_qty: Math.max(0, Math.round(quantity)),
+      raw: row
+    });
+  }
+
+  return rows;
+}
+
+async function applyStockToProducts(supabase, userId, stockRows) {
+  if (!stockRows.length) return { updated: 0, matched: 0 };
+
+  const byKey = new Map();
+  for (const row of stockRows) {
+    const key = `${row.marketplace || ""}::${row.sku || ""}::${row.asin || ""}`;
+    if (!byKey.has(key)) byKey.set(key, row);
+  }
+
+  const uniqueRows = Array.from(byKey.values());
+  let updated = 0;
+
+  for (const row of uniqueRows) {
+    let query = supabase
+      .from("products")
+      .update({
+        stock_qty: row.stock_qty,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", userId);
+
+    if (row.marketplace) {
+      query = query.eq("marketplace", row.marketplace);
+    }
+
+    if (row.sku) {
+      query = query.eq("sku", row.sku);
+    } else {
+      query = query.eq("asin", row.asin);
+    }
+
+    const { data, error } = await query.select("id");
+    if (error) throw error;
+    updated += data?.length || 0;
+  }
+
+  return { updated, matched: uniqueRows.length };
+}
 
 const getTodayInBucharest = () => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -544,6 +639,26 @@ export default async function handler(req, res) {
       }
     }
 
+    let stockUpdated = 0;
+    let stockMatched = 0;
+    if (typeof STOCK_URL === "string" && STOCK_URL.trim() !== "") {
+      try {
+        const stockCsvText = await fetchCsvText(STOCK_URL);
+        const stockCsvData = parseCSV(stockCsvText);
+        const stockRows = mapCSVToStockRows(stockCsvData);
+        const stockResult = await applyStockToProducts(supabase, userId, stockRows);
+        stockUpdated = stockResult.updated;
+        stockMatched = stockResult.matched;
+      } catch (stockError) {
+        failures.push({ market: "STOCK", error: stockError.message });
+      }
+    } else {
+      warnings.push({
+        market: "STOCK",
+        warning: "SELLERBOARD_STOCK_URL not configured"
+      });
+    }
+
     // Propagăm COGS: ultimul cost non-null per SKU în products.cogs (nu rescriem cu NULL).
     if (skuSet.size > 0) {
       const skuList = Array.from(skuSet);
@@ -587,6 +702,8 @@ export default async function handler(req, res) {
       csv_rows_total: csvRowsTotal,
       mappable_rows_total: mappableRowsTotal,
       latest_rows_total: latestRowsTotal,
+      stock_updated: stockUpdated,
+      stock_matched: stockMatched,
       processed,
       failures,
       warnings

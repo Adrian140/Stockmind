@@ -164,7 +164,7 @@ export default function Clearance() {
         <div>
           <h1 className="text-2xl font-medium text-white">Clearance Management</h1>
           <p className="text-lg font-light text-slate-400 mt-1">
-            {clearanceStock.length} products requiring attention
+            {clearanceStock.length} in-stock products requiring attention
           </p>
         </div>
       </div>
@@ -253,7 +253,7 @@ export default function Clearance() {
               <p className="text-lg font-medium text-white">30-60 days no sales</p>
             </div>
             <p className="text-lg font-light text-slate-400">
-              Consider 15-25% price reduction. Candidate status is based on real Sellerboard daily history.
+              Consider 15-25% price reduction. Candidates are limited to products with Amazon stock and real Sellerboard sales history.
             </p>
           </div>
           <div>
@@ -271,7 +271,7 @@ export default function Clearance() {
               <p className="text-lg font-medium text-white">Negative profit or stale demand</p>
             </div>
             <p className="text-lg font-light text-slate-400">
-              Products are proposed when they have negative unit profit or exceed the no-sale threshold.
+              Products appear here only if they still have stock and also have negative unit profit or stale demand.
             </p>
           </div>
         </div>
