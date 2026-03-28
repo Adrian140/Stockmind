@@ -234,27 +234,34 @@ async function chooseKeepaKey({ userId, integrationKey }) {
 
   if (!candidates.length) return null;
 
-  let best = null;
+  let bestAvailable = null;
+  let bestRefill = null;
   for (const candidate of candidates) {
     const balance = await getTokenBalance(candidate.key);
     const evaluated = { ...candidate, ...balance };
     if (evaluated.tokensLeft > safetyRemaining) {
-      console.log(
-        `Using Keepa key source=${evaluated.source} user=${userId} key=${maskKeepaKey(evaluated.key)} tokensLeft=${evaluated.tokensLeft}`
-      );
-      return evaluated;
+      if (!bestAvailable || evaluated.tokensLeft > bestAvailable.tokensLeft) {
+        bestAvailable = evaluated;
+      }
     }
-    if (!best || evaluated.refillIn < best.refillIn) {
-      best = evaluated;
+    if (!bestRefill || evaluated.refillIn < bestRefill.refillIn) {
+      bestRefill = evaluated;
     }
   }
 
-  if (best) {
+  if (bestAvailable) {
+    console.log(
+      `Using Keepa key source=${bestAvailable.source} user=${userId} key=${maskKeepaKey(bestAvailable.key)} tokensLeft=${bestAvailable.tokensLeft}`
+    );
+    return bestAvailable;
+  }
+
+  if (bestRefill) {
     console.warn(
-      `No Keepa key currently has tokens for user=${userId}. Best source=${best.source} key=${maskKeepaKey(best.key)} refillIn=${best.refillIn}ms`
+      `No Keepa key currently has tokens for user=${userId}. Best source=${bestRefill.source} key=${maskKeepaKey(bestRefill.key)} refillIn=${bestRefill.refillIn}ms`
     );
   }
-  return best;
+  return bestRefill;
 }
 
 async function waitForTokenSlot(keepaKey, label) {
