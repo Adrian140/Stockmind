@@ -40,9 +40,7 @@ const keyRatesPerMinute = (process.env.KEEPA_KEY_TOKENS_PER_MINUTE || "")
   .filter((v) => Number.isFinite(v) && v > 0);
 
 const tokensPerMinute = Math.max(1, Number(process.env.KEEPA_TOKENS_PER_MINUTE || 1));
-const delayMs = Math.floor(60000 / tokensPerMinute);
 const safetyRemaining = Math.max(0, Number(process.env.KEEPA_TOKEN_SAFETY_REMAINING || 0));
-const maxWaitForTokenMs = Math.max(60_000, Number(process.env.KEEPA_MAX_WAIT_FOR_TOKEN_MS || 900_000)); // 15m default
 // Un ASIN pe request pentru planul 1 token/min; ajustabil via KEEPA_BATCH_SIZE (dar limitat la 1 implicit).
 const batchSize = Math.max(1, Math.min(10, Number(process.env.KEEPA_BATCH_SIZE || 1)));
 const maxItems = Math.max(0, Number(process.env.KEEPA_ITEMS_PER_RUN || 0));
@@ -55,7 +53,6 @@ const maxRuntimeMs = Math.max(
   60_000,
   Number(process.env.KEEPA_MAX_RUNTIME_MS || (290 * 60 * 1000))
 );
-const retryMaxMs = Math.max(10_000, Number(process.env.KEEPA_RETRY_MAX_MS || 120_000));
 const targetUserId = (process.env.SUPABASE_ADMIN_USER_ID || process.env.TARGET_USER_ID || "").trim();
 const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS !== "0";
 
@@ -236,14 +233,7 @@ async function waitForTokenSlot(keepaKey, label) {
   while (true) {
     const { tokensLeft, refillIn } = await getTokenBalance(keepaKey);
     if (tokensLeft > safetyRemaining) return tokensLeft;
-    const waitMs = Math.max(refillIn || 60000, delayMs);
-    if (waitMs > maxWaitForTokenMs) {
-      const err = new Error(`No tokens for ${label || "keepaKey"}; wait ${waitMs}ms exceeds cap ${maxWaitForTokenMs}ms`);
-      err.status = 429;
-      err.retryIn = waitMs;
-      err.stopForTokens = true;
-      throw err;
-    }
+    const waitMs = Math.max(refillIn || 60000, 1000);
     console.warn(`No tokens available${label ? ` for ${label}` : ""}. tokensLeft=${tokensLeft}, waiting ${waitMs}ms...`);
     await sleep(waitMs);
   }
@@ -284,7 +274,8 @@ async function run() {
   let processed = 0;
   let updated = 0;
   let failed = 0;
-  let stoppedForTokens = false;
+  let shouldRelaunch = candidates.length > 0;
+  let runtimeReached = false;
   let requestsUsed = 0;
   const queue = [];
   let queuedItems = 0;
@@ -311,7 +302,7 @@ async function run() {
     while (true) {
       if (requestsUsed >= maxRequestsPerRun) return;
       if (Date.now() - startTime >= maxRuntimeMs) {
-        stoppedForTokens = true;
+        runtimeReached = true;
         return;
       }
 
@@ -351,21 +342,7 @@ async function run() {
           done = true;
         } catch (error) {
           if (error.status === 429 || error.retryIn) {
-            if (error.stopForTokens) {
-              console.warn(
-                `Stopped waiting for tokens for user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}; wait exceeded cap (${maxWaitForTokenMs} ms).`
-              );
-              stoppedForTokens = true;
-              return;
-            }
-            const retryIn = Math.max(error.retryIn || 60000, delayMs);
-            if (retryIn > maxWaitForTokenMs) {
-              console.warn(
-                `Skipping key for current run user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}; retryIn ${retryIn}ms exceeds cap ${maxWaitForTokenMs}ms.`
-              );
-              stoppedForTokens = true;
-              return;
-            }
+            const retryIn = Math.max(error.retryIn || 60000, 1000);
             console.warn(
               `Rate limit hit for user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}. Waiting ${retryIn}ms for tokens, then retrying same batch...`
             );
@@ -397,10 +374,10 @@ async function run() {
 
   if (Date.now() - startTime >= maxRuntimeMs) {
     console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
-    stoppedForTokens = true;
+    runtimeReached = true;
   }
 
-  console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, Requests=${requestsUsed}, StoppedForTokens=${stoppedForTokens}`);
+  console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, Requests=${requestsUsed}, RuntimeReached=${runtimeReached}, ShouldRelaunch=${shouldRelaunch}`);
 
   // Expune rezultate pentru GitHub Actions (pasul trebuie să aibă un id).
   if (process.env.GITHUB_OUTPUT) {
@@ -408,7 +385,7 @@ async function run() {
       `processed=${processed}`,
       `updated=${updated}`,
       `failed=${failed}`,
-      `stopped_for_tokens=${stoppedForTokens ? "true" : "false"}`
+      `should_relaunch=${shouldRelaunch ? "true" : "false"}`
     ];
     await fs.appendFile(process.env.GITHUB_OUTPUT, lines.join("\n") + "\n");
   }

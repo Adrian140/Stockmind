@@ -43,7 +43,7 @@ jobs:
           KEEPA_BATCH_SIZE: ${{ secrets.KEEPA_BATCH_SIZE || '1' }}
           KEEPA_ITEMS_PER_RUN: ${{ secrets.KEEPA_ITEMS_PER_RUN || '0' }}
           KEEPA_DEFAULT_ITEMS_PER_RUN: ${{ secrets.KEEPA_DEFAULT_ITEMS_PER_RUN || '1000' }}
-          KEEPA_MAX_REQUESTS_PER_RUN: ${{ secrets.KEEPA_MAX_REQUESTS_PER_RUN || '60' }}
+          KEEPA_MAX_REQUESTS_PER_RUN: ${{ secrets.KEEPA_MAX_REQUESTS_PER_RUN || '0' }}
           KEEPA_MAX_RUNTIME_MS: ${{ secrets.KEEPA_MAX_RUNTIME_MS || '17400000' }} # 4h50m
           SUPABASE_ADMIN_USER_ID: ${{ secrets.SUPABASE_ADMIN_USER_ID }}
           KEEPA_UPDATE_ALL_PRODUCTS: ${{ secrets.KEEPA_UPDATE_ALL_PRODUCTS || '1' }}
@@ -60,7 +60,7 @@ jobs:
           exit "$exit_code"
 
       - name: Relaunch immediately
-        if: ${{ success() && steps.sync_keepa.outputs.stopped_for_tokens != 'true' }}
+        if: ${{ success() && steps.sync_keepa.outputs.should_relaunch == 'true' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ github.token }}
