@@ -9,11 +9,12 @@ const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/products", label: "Products", icon: Package },
   { to: "/seasonality", label: "Seasonality", icon: Calendar },
-  { to: "/clearance", label: "Clearance", icon: PercentCircle },
-  { to: "/integrations", label: "Integrations", icon: Plug }
+  { to: "/clearance", label: "Clearance", icon: PercentCircle }
 ];
 
 export default function Header() {
+  const [settingsMenuOpen, setSettingsMenuOpen] = React.useState(false);
+  const settingsMenuRef = React.useRef(null);
   const { 
     selectedMarketplace, 
     setSelectedMarketplace, 
@@ -26,6 +27,17 @@ export default function Header() {
 
   const { user, signOut } = useAuth();
 
+  React.useEffect(() => {
+    function handleClickOutside(event) {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setSettingsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <header id="header" className="sticky top-0 z-50 bg-dashboard-card border-b border-dashboard-border">
       <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
@@ -36,7 +48,6 @@ export default function Header() {
             </div>
             <div>
               <h1 className="text-lg font-medium text-white leading-tight">Seller Analytics</h1>
-              <p className="text-lg text-slate-400 leading-tight">Amazon EU Platform</p>
             </div>
           </div>
 
@@ -87,12 +98,39 @@ export default function Header() {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
 
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-dashboard-hover transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
+          <div ref={settingsMenuRef} className="relative shrink-0">
+            <button
+              onClick={() => setSettingsMenuOpen((open) => !open)}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-dashboard-hover transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+
+            {settingsMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-52 rounded-lg border border-dashboard-border bg-dashboard-card shadow-xl overflow-hidden">
+                <button
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    setSettingsMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-slate-300 hover:bg-dashboard-hover hover:text-white transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Application Settings
+                </button>
+
+                <NavLink
+                  to="/integrations"
+                  onClick={() => setSettingsMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 text-sm text-slate-300 hover:bg-dashboard-hover hover:text-white transition-colors"
+                >
+                  <Plug className="w-4 h-4" />
+                  Integrations
+                </NavLink>
+              </div>
+            )}
+          </div>
 
           {user && (
             <div className="pl-3 border-l border-dashboard-border shrink-0">
