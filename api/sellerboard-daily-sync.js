@@ -324,10 +324,13 @@ function mapCSVToStockRows(csvData) {
   for (const row of csvData) {
     const asin = getField(row, ["ASIN", "asin", "Asin"]) || "";
     const sku = getField(row, ["SKU", "sku", "Sku", "SellerSKU", "Seller SKU"]) || "";
+    const title = getField(row, ["Title", "title", "Name", "name"]) || "";
     const marketplaceRaw = getField(row, ["Marketplace", "marketplace", "Country", "country", "Market"]);
     const marketplace = mapMarketplace(marketplaceRaw);
     const quantity = parseNumber(
       getField(row, [
+        "FBA/FBM Stock",
+        "FBA / FBM Stock",
         "Available",
         "available",
         "Qty",
@@ -348,19 +351,76 @@ function mapCSVToStockRows(csvData) {
         "Your Available Qty"
       ])
     );
+    const stockValue = parseNumber(getField(row, ["Stock value", "stock value", "Stock Value"]));
+    const reservedQty = Math.max(0, Math.round(parseNumber(getField(row, ["Reserved", "reserved"]))));
+    const inboundQty = Math.max(
+      0,
+      Math.round(
+        parseNumber(getField(row, ["Sent  to FBA", "Sent to FBA", "sent to FBA"])) +
+          parseNumber(getField(row, ["Ordered", "ordered"]))
+      )
+    );
+    const daysOfStockLeft = Math.max(
+      0,
+      Math.round(parseNumber(getField(row, ["Days  of stock  left", "Days of stock left"])))
+    );
 
     if (!sku && !asin) continue;
 
     rows.push({
       asin,
       sku,
+      title,
       marketplace,
       stock_qty: Math.max(0, Math.round(quantity)),
+      reserved_qty: reservedQty,
+      inbound_qty: inboundQty,
+      stock_value: Number(stockValue.toFixed(2)),
+      days_of_stock_left: daysOfStockLeft,
       raw: row
     });
   }
 
   return rows;
+}
+
+async function upsertStockSnapshots(supabase, userId, stockRows, snapshotDate, batchSize = 500) {
+  if (!stockRows.length) return 0;
+
+  const byKey = new Map();
+  for (const row of stockRows) {
+    const key = `${snapshotDate}|${row.marketplace || ""}|${row.sku || ""}|${row.asin || ""}`;
+    if (!byKey.has(key)) byKey.set(key, row);
+  }
+
+  const uniqueRows = Array.from(byKey.values()).map((row) => ({
+    user_id: userId,
+    snapshot_date: snapshotDate,
+    marketplace: row.marketplace || "DE",
+    asin: row.asin || "",
+    sku: row.sku || "",
+    title: row.title || "",
+    stock_qty: row.stock_qty || 0,
+    reserved_qty: row.reserved_qty || 0,
+    inbound_qty: row.inbound_qty || 0,
+    stock_value: row.stock_value || 0,
+    days_of_stock_left: row.days_of_stock_left || 0,
+    raw: row.raw || {}
+  }));
+
+  let total = 0;
+  for (let i = 0; i < uniqueRows.length; i += batchSize) {
+    const batch = uniqueRows.slice(i, i + batchSize);
+    const { error } = await supabase
+      .from("sellerboard_stock_daily")
+      .upsert(batch, {
+        onConflict: "user_id,snapshot_date,marketplace,sku,asin"
+      });
+    if (error) throw error;
+    total += batch.length;
+  }
+
+  return total;
 }
 
 async function applyStockToProducts(supabase, userId, stockRows) {
@@ -641,11 +701,14 @@ export default async function handler(req, res) {
 
     let stockUpdated = 0;
     let stockMatched = 0;
+    let stockSnapshotsSaved = 0;
     if (typeof STOCK_URL === "string" && STOCK_URL.trim() !== "") {
       try {
         const stockCsvText = await fetchCsvText(STOCK_URL);
         const stockCsvData = parseCSV(stockCsvText);
         const stockRows = mapCSVToStockRows(stockCsvData);
+        const stockSnapshotDate = getTodayInBucharest();
+        stockSnapshotsSaved = await upsertStockSnapshots(supabase, userId, stockRows, stockSnapshotDate);
         const stockResult = await applyStockToProducts(supabase, userId, stockRows);
         stockUpdated = stockResult.updated;
         stockMatched = stockResult.matched;
@@ -704,6 +767,7 @@ export default async function handler(req, res) {
       latest_rows_total: latestRowsTotal,
       stock_updated: stockUpdated,
       stock_matched: stockMatched,
+      stock_snapshots_saved: stockSnapshotsSaved,
       processed,
       failures,
       warnings
