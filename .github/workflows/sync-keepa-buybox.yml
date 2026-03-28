@@ -38,6 +38,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE }}
           KEEPA_API_KEYS: ${{ secrets.KEEPA_API_KEYS }}
           KEEPA_TOKENS_PER_MINUTE: ${{ secrets.KEEPA_TOKENS_PER_MINUTE || '1' }}
+          KEEPA_KEY_TOKENS_PER_MINUTE: ${{ secrets.KEEPA_KEY_TOKENS_PER_MINUTE || '' }}
           KEEPA_TOKEN_SAFETY_REMAINING: ${{ secrets.KEEPA_TOKEN_SAFETY_REMAINING || '0' }}
           KEEPA_BATCH_SIZE: ${{ secrets.KEEPA_BATCH_SIZE || '1' }}
           KEEPA_ITEMS_PER_RUN: ${{ secrets.KEEPA_ITEMS_PER_RUN || '0' }}

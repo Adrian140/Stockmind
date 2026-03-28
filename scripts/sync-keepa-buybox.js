@@ -34,6 +34,10 @@ const keyPool = (process.env.KEEPA_API_KEYS || "")
   .split(/[\n,]/)
   .map((k) => k.trim())
   .filter(Boolean);
+const keyRatesPerMinute = (process.env.KEEPA_KEY_TOKENS_PER_MINUTE || "")
+  .split(/[\n,]/)
+  .map((v) => Number(v.trim()))
+  .filter((v) => Number.isFinite(v) && v > 0);
 
 const tokensPerMinute = Math.max(1, Number(process.env.KEEPA_TOKENS_PER_MINUTE || 1));
 const delayMs = Math.floor(60000 / tokensPerMinute);
@@ -204,13 +208,23 @@ async function buildWorkerKeys(userIds, integrationKeys) {
   for (const userId of userIds) {
     const key = integrationKeys.get(userId);
     if (!key || seen.has(key)) continue;
-    workers.push({ key, source: "integration", ownerUserId: userId });
+    workers.push({
+      key,
+      source: "integration",
+      ownerUserId: userId,
+      tokensPerMinute
+    });
     seen.add(key);
   }
 
-  for (const key of keyPool) {
+  for (const [index, key] of keyPool.entries()) {
     if (!key || seen.has(key)) continue;
-    workers.push({ key, source: "pool", ownerUserId: null });
+    workers.push({
+      key,
+      source: "pool",
+      ownerUserId: null,
+      tokensPerMinute: Math.max(1, Number(keyRatesPerMinute[index] || tokensPerMinute))
+    });
     seen.add(key);
   }
 
@@ -258,7 +272,6 @@ async function run() {
   const userIds = [...new Set(candidates.map((row) => row.user_id))];
   const integrationKeys = await loadUserIntegrationKeys(userIds);
   const workerKeys = await buildWorkerKeys(userIds, integrationKeys);
-  const interRequestDelayMs = workerKeys.length > 1 ? 0 : delayMs;
   const grouped = new Map();
 
   for (const candidate of candidates) {
@@ -310,7 +323,7 @@ async function run() {
       if (!asins.length) continue;
 
       console.log(
-        `Using Keepa key source=${worker.source} user=${userId} key=${maskKeepaKey(worker.key)} workerOwner=${worker.ownerUserId || "pool"}`
+        `Using Keepa key source=${worker.source} user=${userId} key=${maskKeepaKey(worker.key)} workerOwner=${worker.ownerUserId || "pool"} rate=${worker.tokensPerMinute}/min`
       );
 
       let done = false;
@@ -369,8 +382,9 @@ async function run() {
         }
       }
 
-      if (interRequestDelayMs > 0 && requestsUsed < maxRequestsPerRun) {
-        await sleep(interRequestDelayMs);
+      const workerDelayMs = Math.floor(60000 / Math.max(1, worker.tokensPerMinute || tokensPerMinute));
+      if (workerDelayMs > 0 && requestsUsed < maxRequestsPerRun) {
+        await sleep(workerDelayMs);
       }
     }
   }
