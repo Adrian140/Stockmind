@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { AlertTriangle, Package, TrendingDown, Check, ArrowRight, LoaderCircle } from 'lucide-react';
+import { AlertTriangle, Package, TrendingDown, Check, ArrowRight, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { productsService } from '../services/products.service';
 import DataTable from '../components/ui/DataTable';
@@ -240,7 +240,7 @@ export default function Clearance() {
         emptyMessage={
           loadingProducts ? (
             <div className="flex min-h-[120px] items-center justify-center gap-3 text-slate-400">
-              <LoaderCircle className="h-5 w-5 animate-spin text-amazon-orange" />
+              <Loader2 className="h-5 w-5 animate-spin text-amazon-orange" />
               <span>Se încarcă produsele și stocurile Sellerboard...</span>
             </div>
           ) : "No products in clearance status."
