@@ -55,28 +55,8 @@ const retryMaxMs = Math.max(10_000, Number(process.env.KEEPA_RETRY_MAX_MS || 120
 const targetUserId = (process.env.SUPABASE_ADMIN_USER_ID || process.env.TARGET_USER_ID || "").trim();
 const updateAll = process.env.KEEPA_UPDATE_ALL_PRODUCTS !== "0";
 
-let keyIndex = 0;
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function nextPoolKey() {
-  if (!keyPool.length) return null;
-  const key = keyPool[keyIndex % keyPool.length];
-  keyIndex += 1;
-  return key;
-}
-
-function getRotatedPoolKeys() {
-  if (!keyPool.length) return [];
-  const startIndex = keyIndex % keyPool.length;
-  const rotated = [];
-  for (let i = 0; i < keyPool.length; i += 1) {
-    rotated.push(keyPool[(startIndex + i) % keyPool.length]);
-  }
-  keyIndex = (startIndex + 1) % keyPool.length;
-  return rotated;
 }
 
 function maskKeepaKey(key) {
@@ -217,51 +197,24 @@ async function getTokenBalance(keepaKey) {
   };
 }
 
-async function chooseKeepaKey({ userId, integrationKey }) {
-  const candidates = [];
+async function buildWorkerKeys(userIds, integrationKeys) {
+  const workers = [];
   const seen = new Set();
 
-  if (integrationKey && !seen.has(integrationKey)) {
-    candidates.push({ key: integrationKey, source: "integration" });
-    seen.add(integrationKey);
-  }
-
-  for (const key of getRotatedPoolKeys()) {
+  for (const userId of userIds) {
+    const key = integrationKeys.get(userId);
     if (!key || seen.has(key)) continue;
-    candidates.push({ key, source: "pool" });
+    workers.push({ key, source: "integration", ownerUserId: userId });
     seen.add(key);
   }
 
-  if (!candidates.length) return null;
-
-  let bestAvailable = null;
-  let bestRefill = null;
-  for (const candidate of candidates) {
-    const balance = await getTokenBalance(candidate.key);
-    const evaluated = { ...candidate, ...balance };
-    if (evaluated.tokensLeft > safetyRemaining) {
-      if (!bestAvailable || evaluated.tokensLeft > bestAvailable.tokensLeft) {
-        bestAvailable = evaluated;
-      }
-    }
-    if (!bestRefill || evaluated.refillIn < bestRefill.refillIn) {
-      bestRefill = evaluated;
-    }
+  for (const key of keyPool) {
+    if (!key || seen.has(key)) continue;
+    workers.push({ key, source: "pool", ownerUserId: null });
+    seen.add(key);
   }
 
-  if (bestAvailable) {
-    console.log(
-      `Using Keepa key source=${bestAvailable.source} user=${userId} key=${maskKeepaKey(bestAvailable.key)} tokensLeft=${bestAvailable.tokensLeft}`
-    );
-    return bestAvailable;
-  }
-
-  if (bestRefill) {
-    console.warn(
-      `No Keepa key currently has tokens for user=${userId}. Best source=${bestRefill.source} key=${maskKeepaKey(bestRefill.key)} refillIn=${bestRefill.refillIn}ms`
-    );
-  }
-  return bestRefill;
+  return workers;
 }
 
 async function waitForTokenSlot(keepaKey, label) {
@@ -304,6 +257,8 @@ async function run() {
 
   const userIds = [...new Set(candidates.map((row) => row.user_id))];
   const integrationKeys = await loadUserIntegrationKeys(userIds);
+  const workerKeys = await buildWorkerKeys(userIds, integrationKeys);
+  const interRequestDelayMs = workerKeys.length > 1 ? 0 : delayMs;
   const grouped = new Map();
 
   for (const candidate of candidates) {
@@ -318,43 +273,55 @@ async function run() {
   let failed = 0;
   let stoppedForTokens = false;
   let requestsUsed = 0;
+  const queue = [];
+  let queuedItems = 0;
 
   for (const [key, items] of grouped.entries()) {
-    if (itemsPerRun > 0 && processed >= itemsPerRun) break;
     const [userId, domain] = key.split("::");
-
     const batches = chunkArray(items, Math.min(batchSize, 100));
     for (const batch of batches) {
-      if ((itemsPerRun > 0 && processed >= itemsPerRun) || requestsUsed >= maxRequestsPerRun) break;
+      if (itemsPerRun > 0 && queuedItems >= itemsPerRun) break;
+      queue.push({ userId, domain, batch });
+      queuedItems += batch.length;
+    }
+  }
+
+  if (!workerKeys.length) {
+    console.warn("No Keepa keys available from integration or pool.");
+  } else {
+    console.log(`Starting ${workerKeys.length} Keepa workers in parallel.`);
+  }
+
+  let queueIndex = 0;
+
+  async function workerLoop(worker) {
+    while (true) {
+      if (requestsUsed >= maxRequestsPerRun) return;
       if (Date.now() - startTime >= maxRuntimeMs) {
-        console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
         stoppedForTokens = true;
-        break;
+        return;
       }
+
+      const task = queueIndex < queue.length ? queue[queueIndex++] : null;
+      if (!task) return;
+
+      const { userId, domain, batch } = task;
       const asins = batch.map((item) => item.asin).filter(Boolean);
       if (!asins.length) continue;
 
-      processed += batch.length;
+      console.log(
+        `Using Keepa key source=${worker.source} user=${userId} key=${maskKeepaKey(worker.key)} workerOwner=${worker.ownerUserId || "pool"}`
+      );
+
       let done = false;
       while (!done) {
         try {
-          const selectedKey = await chooseKeepaKey({
-            userId,
-            integrationKey: integrationKeys.get(userId)
-          });
-          const keepaKey = selectedKey?.key || null;
-          if (!keepaKey) {
-            console.warn(`No Keepa key available for user=${userId}`);
-            failed += batch.length;
-            done = true;
-            break;
-          }
-
-          await waitForTokenSlot(keepaKey, `user=${userId} domain=${domain}`);
-          const keepaProducts = await fetchBuyBoxFromKeepa(keepaKey, domain, asins);
+          await waitForTokenSlot(worker.key, `user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}`);
+          const keepaProducts = await fetchBuyBoxFromKeepa(worker.key, domain, asins);
           requestsUsed += 1;
-          const productMap = new Map((keepaProducts || []).map((prod) => [prod.asin, prod]));
+          processed += batch.length;
 
+          const productMap = new Map((keepaProducts || []).map((prod) => [prod.asin, prod]));
           for (const product of batch) {
             const keepaData = productMap.get(product.asin);
             const price = getKeepaBuyBoxTotal(keepaData);
@@ -367,41 +334,49 @@ async function run() {
             await updateProductBuyBoxByAsin(product.user_id, product.asin, product.marketplace, updates);
             if (updates.bb_current) updated += 1;
           }
+
           done = true;
         } catch (error) {
           if (error.status === 429 || error.retryIn) {
             if (error.stopForTokens) {
-              console.warn(`Stopped waiting for tokens for user=${userId} domain=${domain}; wait exceeded cap (${maxWaitForTokenMs} ms).`);
+              console.warn(
+                `Stopped waiting for tokens for user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}; wait exceeded cap (${maxWaitForTokenMs} ms).`
+              );
               stoppedForTokens = true;
-              done = true;
-              break;
+              return;
             }
             const retryIn = Math.max(error.retryIn || 60000, delayMs);
-            console.warn(`Rate limit hit for user=${userId} domain=${domain}. Waiting ${retryIn}ms for tokens, then retrying same batch...`);
+            console.warn(
+              `Rate limit hit for user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}. Waiting ${retryIn}ms for tokens, then retrying same batch...`
+            );
             await sleep(retryIn);
             continue;
           }
-          console.error(`Keepa buy box fetch failed for user=${userId} domain=${domain}:`, error.message);
+
+          console.error(
+            `Keepa buy box fetch failed for user=${userId} domain=${domain} key=${maskKeepaKey(worker.key)}:`,
+            error.message
+          );
           failed += batch.length;
           done = true;
         }
       }
 
-      if (requestsUsed >= maxRequestsPerRun) {
-        console.log(`Reached max requests per run (${requestsUsed}/${maxRequestsPerRun}). Stopping to respect rate.`);
-        break;
-      }
-
-      if (Date.now() - startTime >= maxRuntimeMs) {
-        console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
-        stoppedForTokens = true;
-        break;
-      }
-
-      if (delayMs > 0 && requestsUsed < maxRequestsPerRun) {
-        await sleep(delayMs);
+      if (interRequestDelayMs > 0 && requestsUsed < maxRequestsPerRun) {
+        await sleep(interRequestDelayMs);
       }
     }
+  }
+
+  await Promise.all(workerKeys.map((worker) => workerLoop(worker)));
+
+  if (requestsUsed >= maxRequestsPerRun) {
+    console.log(`Reached max requests per run (${requestsUsed}/${maxRequestsPerRun}). Stopping to respect rate.`);
+  }
+
+  if (Date.now() - startTime >= maxRuntimeMs) {
+    console.log(`Reached max runtime (${maxRuntimeMs} ms). Stopping gracefully.`);
+    stoppedForTokens = true;
   }
 
   console.log(`Completed Keepa buy box sync. Processed=${processed}, Updated=${updated}, Failed=${failed}, Requests=${requestsUsed}, StoppedForTokens=${stoppedForTokens}`);
